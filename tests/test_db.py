@@ -125,6 +125,20 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(device.status, "healthy")
         self.assertIsNotNone(device.last_seen_at)
 
+    def test_touch_device_polled_sets_last_polled_at(self):
+        site_id = self.db.add_site("Chicago")
+        device_id = self.db.add_device(site_id=site_id, name="CHI-X20-1", vendor="appear", mgmt_host="10.0.1.10")
+        self.assertIsNone(self.db.get_device(device_id).last_polled_at)
+        self.db.touch_device_polled(device_id)
+        self.assertIsNotNone(self.db.get_device(device_id).last_polled_at)
+
+    def test_record_poll_stores_detail(self):
+        site_id = self.db.add_site("Chicago")
+        device_id = self.db.add_device(site_id=site_id, name="CHI-X20-1", vendor="appear", mgmt_host="10.0.1.10")
+        self.db.record_poll(device_id, method="api", success=True, latency_ms=9, detail="API ping ok\nAPI collect ok")
+        row = self.db.recent_poll_history(device_id)[0]
+        self.assertEqual(row["detail"], "API ping ok\nAPI collect ok")
+
     def test_set_device_status_unreachable_does_not_touch_last_seen(self):
         site_id = self.db.add_site("Chicago")
         device_id = self.db.add_device(site_id=site_id, name="CHI-X20-1", vendor="appear", mgmt_host="10.0.1.10")

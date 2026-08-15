@@ -29,7 +29,7 @@
     unknown: "#c3ccdc",
   };
   const CDN_MAP = {
-    tile_url: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
+    tile_url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
     tile_subdomains: "abcd",
     tile_attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> &copy; <a href=\"https://carto.com/attributions\">CARTO</a>",
     min_zoom: 3,
@@ -274,14 +274,16 @@
   }
 
   function themedTileUrl(url) {
+    if (!url || url.startsWith("/tiles/")) return url;
     if (currentTheme() === "light") {
       return url
         .replace("/dark_all/", "/light_all/")
         .replace("/dark_nolabels/", "/light_nolabels/");
     }
+    // Dark chrome, but keep geography readable — do not use Dark Matter.
     return url
-      .replace("/light_all/", "/dark_all/")
-      .replace("/light_nolabels/", "/dark_nolabels/");
+      .replace("/dark_all/", "/rastertiles/voyager/")
+      .replace("/dark_nolabels/", "/rastertiles/voyager_nolabels/");
   }
 
   function syncThemeToggle() {
@@ -951,6 +953,7 @@
         <td>${escapeHtml(d.model || "—")}</td>
         <td>${escapeHtml(d.mgmt_host || "—")}</td>
         <td>${escapeHtml(d.resolved_driver || d.driver_override || "—")}</td>
+        <td>${escapeHtml(fmtTime(d.last_polled_at))}</td>
         <td>${escapeHtml(fmtTime(d.last_seen_at))}</td>
       </tr>`;
     }).join("");
@@ -1027,6 +1030,7 @@
       <div id="inv-health">
         <p>${badge(d.status)}${d.poll_enabled ? "" : ' <span class="badge unknown"><span class="dot"></span>poll off</span>'}</p>
         <p class="muted">Monitor driver: ${escapeHtml(d.resolved_driver || d.driver_override || "unresolved")}${d.control_driver ? ` · control ${escapeHtml(d.control_driver)}` : ""}</p>
+        <p class="muted">Last polled ${escapeHtml(fmtTime(d.last_polled_at))} · last seen ${escapeHtml(fmtTime(d.last_seen_at))}</p>
         ${driverNotesHtml(d.resolved_driver || d.driver_override, d.vendor)}
         ${d.last_error ? `<p class="badge down">${escapeHtml(d.last_error)}</p>` : ""}
         <h3>Modules</h3>
@@ -1035,7 +1039,7 @@
         ).join("")}</ul>` : `<p class="muted">None discovered yet.</p>`}
         <h3>Recent polls</h3>
         ${polls.length ? `<ul class="row-list">${polls.map((p) =>
-          `<li><span>${escapeHtml(fmtTime(p.polled_at))}<br><span class="muted">${escapeHtml(p.method)}${p.latency_ms != null ? ` · ${p.latency_ms}ms` : ""}</span></span>${p.success ? badge("up") : badge("down")}</li>`
+          `<li><span>${escapeHtml(fmtTime(p.polled_at))}<br><span class="muted">${escapeHtml(p.method)}${p.latency_ms != null ? ` · ${p.latency_ms}ms` : ""}${p.error_message ? ` · ${escapeHtml(p.error_message)}` : ""}</span>${p.detail ? `<br><span class="muted">${escapeHtml(p.detail).replace(/\n/g, "<br>")}</span>` : ""}</span>${p.success ? badge("up") : badge("down")}</li>`
         ).join("")}</ul>` : `<p class="muted">No poll history. Start the poller.</p>`}
         <h3>SNMP traps</h3>
         ${traps.length ? `<ul class="row-list">${traps.map((t) =>

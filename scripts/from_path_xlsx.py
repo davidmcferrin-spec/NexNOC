@@ -648,7 +648,7 @@ def build_inventory(xlsx: Path | None = None, collect_secrets: dict | None = Non
     return {
         "poll_interval_seconds": 30,
         "map": {
-            "tile_url": "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
+            "tile_url": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
             "tile_subdomains": "abcd",
             "min_zoom": 3,
             "max_zoom": 18,

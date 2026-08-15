@@ -20,8 +20,17 @@ from poller import (  # noqa: E402
     devices_due,
     poll_loop,
     setup_logging,
+    should_bootstrap,
     snmp_target_for,
 )
+
+
+class TestBootstrapGate(unittest.TestCase):
+    def test_import_only_when_empty_or_explicit(self):
+        self.assertTrue(should_bootstrap(True, True))
+        self.assertTrue(should_bootstrap(True, False))
+        self.assertTrue(should_bootstrap(False, False))
+        self.assertFalse(should_bootstrap(False, True))
 
 
 class TestPollerLogging(unittest.TestCase):

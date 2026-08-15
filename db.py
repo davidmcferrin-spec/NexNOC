@@ -93,6 +93,7 @@ class Device:
     poll_enabled: bool
     status: str
     last_seen_at: Optional[str]
+    last_polled_at: Optional[str]
     last_error: Optional[str]
 
     @classmethod
@@ -139,6 +140,7 @@ class Device:
             poll_enabled=bool(row["poll_enabled"]),
             status=row["status"],
             last_seen_at=row["last_seen_at"],
+            last_polled_at=col("last_polled_at"),
             last_error=row["last_error"],
         )
 
@@ -201,6 +203,10 @@ class Database:
                 ("snmp_v3_priv_proto", "TEXT DEFAULT 'AES'"),
                 ("snmp_v3_priv_pass_env", "TEXT"),
                 ("control_driver", "TEXT"),
+                ("last_polled_at", "TEXT"),
+            ],
+            "poll_log": [
+                ("detail", "TEXT"),
             ],
             "ports": [
                 ("capability", "TEXT NOT NULL DEFAULT ''"),
@@ -737,6 +743,15 @@ class Database:
                 (device_id,),
             ).fetchone()
 
+    def touch_device_polled(self, device_id: int) -> None:
+        """Stamp last_polled_at on every attempt (success, fail, or skip)."""
+        now = utcnow_iso()
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE devices SET last_polled_at = ?, updated_at = ? WHERE id = ?",
+                (now, now, device_id),
+            )
+
     def set_device_status(self, device_id: int, status: str, error: Optional[str] = None) -> None:
         if status not in VALID_DEVICE_STATUSES:
             raise ValueError(f"invalid device status {status!r}, must be one of {sorted(VALID_DEVICE_STATUSES)}")
@@ -805,16 +820,17 @@ class Database:
     # Poll log
     # ------------------------------------------------------------------
     def record_poll(self, device_id: int, method: str, success: bool,
-                     latency_ms: Optional[int] = None, error_message: Optional[str] = None) -> None:
+                     latency_ms: Optional[int] = None, error_message: Optional[str] = None,
+                     detail: Optional[str] = None) -> None:
         if method not in ("api", "snmp", "nms"):
             raise ValueError("method must be 'api', 'snmp', or 'nms'")
         with self.connect() as conn:
             conn.execute(
                 """
-                INSERT INTO poll_log (device_id, method, success, latency_ms, error_message)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO poll_log (device_id, method, success, latency_ms, error_message, detail)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (device_id, method, int(success), latency_ms, error_message),
+                (device_id, method, int(success), latency_ms, error_message, detail),
             )
 
     def recent_poll_history(self, device_id: int, limit: int = 50) -> list[sqlite3.Row]:

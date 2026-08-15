@@ -47,6 +47,7 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("User=nexnoc", web)
         self.assertIn("User=nexnoc", trapd)
         self.assertIn("--db /var/lib/nexnoc/noc.db", poller)
+        self.assertNotIn("--config", poller)
         self.assertIn("--db /var/lib/nexnoc/noc.db", trapd)
         self.assertIn("--host 127.0.0.1", web)
         self.assertIn("--port 8080", web)

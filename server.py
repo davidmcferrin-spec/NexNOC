@@ -54,10 +54,11 @@ logger = logging.getLogger("nexnoc.server")
 
 WEB_ROOT = Path(__file__).parent / "web"
 
-# Dev default: Carto Dark Matter over the public CDN. Production sets
-# map.local_tile_dir (or --tile-dir) and the dashboard serves XYZ tiles
-# from disk at /tiles/{z}/{x}/{y}.png instead.
-CDN_TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+# Dev default: Carto Voyager (no labels) over the public CDN — readable
+# land/water under the dark board. Production sets map.local_tile_dir
+# (or --tile-dir) and the dashboard serves XYZ tiles from disk at
+# /tiles/{z}/{x}/{y}.png instead.
+CDN_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
 CDN_TILE_SUBDOMAINS = "abcd"
 CDN_TILE_ATTRIBUTION = (
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
@@ -135,6 +136,7 @@ def serialize_device(device: Device, site_name: str, city_name: str = "",
         "resolved_driver": device.resolved_driver,
         "status": device.status,
         "last_seen_at": device.last_seen_at,
+        "last_polled_at": device.last_polled_at,
         "last_error": device.last_error,
         "poll_enabled": device.poll_enabled,
         "api_port": device.api_port,

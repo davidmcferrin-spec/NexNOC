@@ -122,7 +122,8 @@ CREATE TABLE IF NOT EXISTS devices (
     poll_enabled        INTEGER NOT NULL DEFAULT 1,
     status              TEXT NOT NULL DEFAULT 'unknown'
                             CHECK (status IN ('unknown','healthy','degraded','unreachable','decommissioned')),
-    last_seen_at        TEXT,
+    last_seen_at        TEXT,               -- last successful (healthy/degraded) poll
+    last_polled_at      TEXT,               -- last poll attempt, success or fail
     last_error          TEXT,
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
@@ -297,7 +298,8 @@ CREATE TABLE IF NOT EXISTS poll_log (
     method        TEXT NOT NULL CHECK (method IN ('api','snmp','nms')),
     success       INTEGER NOT NULL,
     latency_ms    INTEGER,
-    error_message TEXT
+    error_message TEXT,
+    detail        TEXT                          -- short process transcript for this attempt
 );
 
 CREATE INDEX IF NOT EXISTS idx_poll_log_device_time ON poll_log(device_id, polled_at);

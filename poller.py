@@ -2,24 +2,25 @@
 poller.py - Phase 1 foundation service for NexNOC.
 
 Responsibilities:
-  1. Bootstrap: load config.json, upsert sites/devices/trunks/signals/ports/flows
-     into the DB (idempotent - safe to re-run after editing config.json to add
-     a device or path). If config has no `flows` key, one flow is derived
-     per legacy signal so the map still has directed hops.
+  1. Bootstrap (optional): load config.json into the DB. setup.sh and
+     `--bootstrap-only` do this on first install. After that the DB is
+     the source of truth — a normal poller start does not re-import JSON.
+     If config has no `flows` key, one flow is derived per legacy signal
+     so the map still has directed hops.
   2. Poll loop: each enabled device is scheduled on its own
      `poll_interval_seconds` cadence (default 30s), with a cap on how many
      polls run at once. A hung box does not delay the others. ping() then
-     collect() via the resolved driver; results go to poll_log and
-     devices.status.
+     collect() via the resolved driver; results go to poll_log (with a
+     short process transcript) and devices.status / last_polled_at.
   3. Retry/backoff: a single failed poll does not immediately mark a device
      unreachable - avoids flapping status on a dropped packet. Marks
      'unreachable' only after `consecutive_failures_threshold` misses in a row.
 
-Run:
-    python3 poller.py --config config.json --db /var/lib/nexnoc/noc.db
+Run (inventory already in the DB):
+    python3 poller.py --db /var/lib/nexnoc/noc.db
     python3 poller.py --verbose --log-file poller.log
 
-Bootstrap only (no polling), e.g. after editing config.json:
+First-run / re-import from JSON (setup.sh does this):
     python3 poller.py --config config.json --db noc.db --bootstrap-only
 
 Discover real API paths against one HTTP-based device (Appear, Haivision)
@@ -111,6 +112,11 @@ def load_config(config_path: str) -> dict:
         )
     with path.open(encoding="utf-8") as f:
         return json.load(f)
+
+
+def should_bootstrap(bootstrap_only: bool, has_devices: bool) -> bool:
+    """Import config.json only on first run (empty DB) or --bootstrap-only."""
+    return bootstrap_only or not has_devices
 
 
 def bootstrap(db: Database, config: dict) -> None:
@@ -818,6 +824,7 @@ def held_trap(db: Database, device: Device):
 
 
 def _finish_poll(db: Database, device: Device, outcome: PollOutcome) -> PollOutcome:
+    db.touch_device_polled(device.id)
     row = db.get_device(device.id)
     if row is not None:
         outcome.status = row.status
@@ -848,15 +855,27 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
     has_api = device.access_mode in ("direct_api", "via_nms")
     snmp_wanted = device.snmp_enabled or device.access_mode == "direct_snmp"
     snmp_target = snmp_target_for(device)
+    steps: list[str] = []
+
+    def step(msg: str) -> None:
+        steps.append(msg)
+        logger.debug("%s %s", device.name, msg)
+
+    def take_detail() -> Optional[str]:
+        if not steps:
+            return None
+        text = "\n".join(steps)
+        steps.clear()
+        return text
+
     if snmp_wanted and snmp_target is None:
-        logger.debug(
-            "%s SNMP GET skipped — %s",
-            device.name,
+        reason = (
             "no community or v3 credentials" if (device.mgmt_host or device.snmp_host)
-            else "no SNMP host",
+            else "no SNMP host"
         )
+        step(f"SNMP GET skipped — {reason}")
     elif not snmp_wanted:
-        logger.debug("%s SNMP GET skipped — snmp_enabled=0", device.name)
+        step("SNMP GET skipped — snmp_enabled=0")
 
     api_ok: Optional[bool] = None
     snmp_ok: Optional[bool] = None
@@ -868,95 +887,134 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
         try:
             driver = cached_driver(db, device)
             outcome.driver_id = driver.driver_id
+            step(f"resolved driver {driver.driver_id}")
         except DriverResolutionError as exc:
             logger.error("Cannot poll device %r: %s", device.name, exc)
-            db.record_poll(device.id, method=method, success=False, error_message=str(exc))
+            step(f"driver resolution failed: {exc}")
+            db.record_poll(device.id, method=method, success=False, error_message=str(exc),
+                           detail=take_detail())
             api_ok = False
         except NotImplementedError as exc:
             logger.error("Device %r: %s", device.name, exc)
-            db.record_poll(device.id, method=method, success=False, error_message=str(exc))
+            step(f"driver not implemented: {exc}")
+            db.record_poll(device.id, method=method, success=False, error_message=str(exc),
+                           detail=take_detail())
             api_ok = False
         else:
             try:
+                step("API ping")
                 api_ok = await loop.run_in_executor(_poll_executor, driver.ping)
             except NotImplementedError as exc:
                 logger.error("Device %r: %s", device.name, exc)
-                db.record_poll(device.id, method=method, success=False, error_message=str(exc))
+                step(f"API ping not implemented: {exc}")
+                db.record_poll(device.id, method=method, success=False, error_message=str(exc),
+                               detail=take_detail())
                 api_ok = False
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Unexpected error polling device %r via API", device.name)
-                db.record_poll(device.id, method=method, success=False, error_message=str(exc))
+                step(f"API ping exception: {exc}")
+                db.record_poll(device.id, method=method, success=False, error_message=str(exc),
+                               detail=take_detail())
                 api_ok = False
             else:
-                db.record_poll(device.id, method=method, success=bool(api_ok),
-                                error_message=None if api_ok else "API ping failed")
+                step("API ping ok" if api_ok else "API ping failed")
                 if api_ok:
                     try:
+                        step("API collect")
                         snapshot = await loop.run_in_executor(_poll_executor, driver.collect)
                         collect_flag = "ok" if snapshot is not None else "empty"
-                    except Exception:  # noqa: BLE001
+                        step(f"API collect {collect_flag}")
+                    except Exception as exc:  # noqa: BLE001
                         logger.exception("collect() failed for device %r after successful ping", device.name)
                         collect_flag = "fail"
+                        step(f"API collect failed: {exc}")
+                db.record_poll(device.id, method=method, success=bool(api_ok),
+                                error_message=None if api_ok else "API ping failed",
+                                detail=take_detail())
 
     if device.access_mode == "direct_snmp" and not has_api:
         try:
             driver = cached_driver(db, device)
             outcome.driver_id = driver.driver_id
+            step(f"resolved driver {driver.driver_id}")
+            step("SNMP ping")
             snmp_ok = await loop.run_in_executor(_poll_executor, driver.ping)
         except DriverResolutionError as exc:
             logger.error("Cannot poll device %r: %s", device.name, exc)
-            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+            step(f"driver resolution failed: {exc}")
+            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc),
+                           detail=take_detail())
             snmp_ok = False
         except NotImplementedError as exc:
             logger.error("Device %r: %s", device.name, exc)
-            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+            step(f"driver not implemented: {exc}")
+            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc),
+                           detail=take_detail())
             snmp_ok = False
         except Exception as exc:  # noqa: BLE001
             logger.exception("Unexpected error polling device %r via SNMP", device.name)
-            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+            step(f"SNMP ping exception: {exc}")
+            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc),
+                           detail=take_detail())
             snmp_ok = False
         else:
-            db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
-                            error_message=None if snmp_ok else "SNMP GET failed")
+            step("SNMP ping ok" if snmp_ok else "SNMP ping failed")
             if snmp_ok and snmp_target is not None:
                 try:
+                    step("SNMP collect")
                     snap = await loop.run_in_executor(
                         _poll_executor, lambda: driver.snmp_collect(snmp_target),
                     )
                     if snapshot is None:
                         snapshot = snap
                     collect_flag = "ok" if snap is not None else collect_flag
-                except Exception:  # noqa: BLE001
+                    step(f"SNMP collect {collect_flag}")
+                except Exception as exc:  # noqa: BLE001
                     logger.exception("snmp_collect() failed for device %r", device.name)
+                    step(f"SNMP collect failed: {exc}")
+            db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
+                            error_message=None if snmp_ok else "SNMP GET failed",
+                            detail=take_detail())
     elif snmp_target is not None:
         if driver is None:
             try:
                 driver = cached_driver(db, device)
                 outcome.driver_id = driver.driver_id
+                step(f"resolved driver {driver.driver_id}")
             except (DriverResolutionError, NotImplementedError) as exc:
                 logger.error("Cannot SNMP-poll device %r: %s", device.name, exc)
-                db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+                step(f"SNMP driver failed: {exc}")
+                db.record_poll(device.id, method="snmp", success=False, error_message=str(exc),
+                               detail=take_detail())
                 snmp_ok = False
         if driver is not None:
             try:
+                step("SNMP GET")
                 snmp_ok = await loop.run_in_executor(
                     _poll_executor, lambda: driver.snmp_ping(snmp_target),
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.exception("SNMP GET failed for device %r", device.name)
                 snmp_ok = False
-                db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+                step(f"SNMP GET exception: {exc}")
+                db.record_poll(device.id, method="snmp", success=False, error_message=str(exc),
+                               detail=take_detail())
             else:
-                db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
-                                error_message=None if snmp_ok else "SNMP GET failed")
+                step("SNMP GET ok" if snmp_ok else "SNMP GET failed")
                 if snmp_ok and snapshot is None:
                     try:
+                        step("SNMP collect")
                         snapshot = await loop.run_in_executor(
                             _poll_executor, lambda: driver.snmp_collect(snmp_target),
                         )
                         collect_flag = "ok" if snapshot is not None else collect_flag
-                    except Exception:  # noqa: BLE001
+                        step(f"SNMP collect {collect_flag}")
+                    except Exception as exc:  # noqa: BLE001
                         logger.exception("snmp_collect() failed for device %r", device.name)
+                        step(f"SNMP collect failed: {exc}")
+                db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
+                                error_message=None if snmp_ok else "SNMP GET failed",
+                                detail=take_detail())
 
     outcome.api = api_ok
     outcome.snmp = snmp_ok
@@ -1167,9 +1225,13 @@ def run_discovery(db: Database, device_name: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="NexNOC - Phase 1 poller/bootstrap")
-    parser.add_argument("--config", default="config.json", help="Path to config.json")
+    parser.add_argument("--config", default="",
+                        help="JSON to import (only with --bootstrap-only, or when the DB has no devices)")
     parser.add_argument("--db", default="noc.db", help="Path to SQLite DB file")
-    parser.add_argument("--bootstrap-only", action="store_true", help="Sync config into DB and exit")
+    parser.add_argument("--bootstrap-only", action="store_true",
+                        help="Import --config into the DB and exit (setup.sh / re-seed)")
+    parser.add_argument("--interval", type=int, default=0,
+                        help="Poll cadence in seconds (default 30, or poll_interval_seconds from --config)")
     parser.add_argument("--discover", metavar="DEVICE_NAME", help="Probe candidate API paths against one device and exit")
     parser.add_argument("--verbose", action="store_true",
                         help="Per-device DEBUG lines (also NEXNOC_VERBOSE=1)")
@@ -1186,18 +1248,34 @@ def main() -> None:
     db = Database(args.db)
     db.initialize()
 
-    config = load_config(args.config)
-    bootstrap(db, config)
+    interval = 30
+    config_path = (args.config or "").strip()
+    has_devices = bool(db.list_devices(include_decommissioned=True))
+    if args.bootstrap_only and not config_path:
+        logger.error("--bootstrap-only requires --config")
+        sys.exit(2)
+    if config_path:
+        config = load_config(config_path)
+        interval = int(config.get("poll_interval_seconds") or 30)
+        if should_bootstrap(args.bootstrap_only, has_devices):
+            bootstrap(db, config)
+            if args.bootstrap_only:
+                logger.info("Bootstrap complete, exiting (--bootstrap-only)")
+                return
+        else:
+            logger.info(
+                "Database already has devices — skipping %s import (DB is source of truth)",
+                config_path,
+            )
+    elif not has_devices:
+        logger.warning("No devices in database — nothing to poll. Run setup.sh or --bootstrap-only --config")
 
     if args.discover:
         run_discovery(db, args.discover)
         return
 
-    if args.bootstrap_only:
-        logger.info("Bootstrap complete, exiting (--bootstrap-only)")
-        return
-
-    interval = config.get("poll_interval_seconds", 30)
+    if args.interval and args.interval > 0:
+        interval = args.interval
     try:
         asyncio.run(poll_loop(db, interval))
     except KeyboardInterrupt:

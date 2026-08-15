@@ -196,10 +196,10 @@ main { flex: 1; min-height: 0; display: flex; }
   width: 100%;
   height: 100%;
   min-height: 0;
-  background: var(--bg);
+  background: #c5d2dc;
 }
 .leaflet-container {
-  background: var(--bg);
+  background: #c5d2dc;
   font: inherit;
 }
 .leaflet-bar {
@@ -221,6 +221,10 @@ main { flex: 1; min-height: 0; display: flex; }
 }
 html[data-theme="light"] .leaflet-container.local-tiles .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(1.08) contrast(0.92);
+}
+/* Older local packs were Dark Matter — lift them so land/water stay visible. */
+html[data-theme="dark"] .leaflet-container.local-tiles .leaflet-tile-pane {
+  filter: brightness(1.85) contrast(0.9) saturate(0.8);
 }
 .leaflet-control-attribution a { color: var(--accent) !important; }
 
@@ -259,11 +263,6 @@ html[data-theme="light"] .leaflet-container.local-tiles .leaflet-tile-pane {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
 }
 .city-marker.sel .city-pill { border-color: var(--accent); }
-html[data-theme="dark"] .city-pill {
-  background: #dce3f0;
-  border-color: #9aa8c0;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
-}
 html[data-theme="light"] .city-pill {
   box-shadow: 0 1px 4px rgba(21, 32, 51, 0.18);
 }
@@ -278,16 +277,10 @@ html[data-theme="light"] .city-pill {
   font-weight: 650;
   line-height: 1.2;
 }
-html[data-theme="dark"] .site-label {
-  color: #152033;
-}
 .site-sub {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.2;
-}
-html[data-theme="dark"] .site-sub {
-  color: #3d4a61;
 }
 .site-dot { width: 16px; height: 16px; }
 .site-dot .pin-dot { width: 9px; height: 9px; left: 3px; top: 3px; border-width: 2px; }
