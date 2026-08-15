@@ -11,6 +11,7 @@ from auth import (  # noqa: E402
     effective_permissions,
     hash_password,
     load_session_user,
+    next_url,
     verify_password,
 )
 from db import Database  # noqa: E402
@@ -23,6 +24,14 @@ class TestPasswordsAndRoles(unittest.TestCase):
         self.assertTrue(stored.startswith("scrypt$"))
         self.assertTrue(verify_password("password", stored))
         self.assertFalse(verify_password("other", stored))
+
+    def test_next_url_defaults_to_dashboard(self):
+        self.assertEqual(next_url(""), "/dashboard")
+        self.assertEqual(next_url("/"), "/dashboard")
+        self.assertEqual(next_url("/login"), "/dashboard")
+        self.assertEqual(next_url("/#map"), "/dashboard#map")
+        self.assertEqual(next_url("/dashboard#links"), "/dashboard#links")
+        self.assertEqual(next_url("https://evil"), "/dashboard")
 
     def test_role_or_and_overrides(self):
         perms = effective_permissions(["viewer", "operator"])

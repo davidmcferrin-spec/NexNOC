@@ -1,0 +1,71 @@
+:root {
+  --bg: #07090d;
+  --panel: #10141c;
+  --panel-2: #161c27;
+  --border: #232b3a;
+  --text: #e8edf5;
+  --muted: #8b95a8;
+  --bad: #ff5d6c;
+  --accent: #6aa4ff;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+}
+
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+.auth-card {
+  width: min(420px, 92vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 24px;
+}
+.auth-logo {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.auth-card h1 { margin: 0 0 6px; font-size: 22px; }
+.auth-subtitle { color: var(--muted); margin: 0 0 16px; }
+.auth-form, .auth-card label { display: flex; flex-direction: column; gap: 6px; }
+.auth-card label { margin-bottom: 12px; color: var(--muted); font-size: 13px; }
+.auth-card input {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+.btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.auth-submit { width: 100%; }
+.auth-error {
+  background: rgba(255, 93, 108, 0.12);
+  color: var(--bad);
+  border: 1px solid var(--bad);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+.auth-kiosk { text-align: center; margin: 16px 0 0; }
+.auth-kiosk a { color: var(--accent); }

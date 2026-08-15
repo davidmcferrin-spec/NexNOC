@@ -416,6 +416,7 @@
     if (id == null || type == null) selected = { type: null, id: null };
     else if (type === "site") selected = { type, id: Number(id) };
     else selected = { type, id: String(id) };
+    if (type === "hop") setDrawerOpen(true, true);
     renderMap();
   }
 
@@ -1896,7 +1897,7 @@
       body: (method === "GET" || method === "DELETE") ? undefined : JSON.stringify(body || {}),
     });
     if (res.status === 401 && !KIOSK) {
-      location.href = "/login?next=" + encodeURIComponent(location.pathname + location.hash);
+      location.href = "/?next=" + encodeURIComponent(location.pathname + location.hash);
       throw new Error("login required");
     }
     const data = await res.json().catch(() => ({}));
@@ -2406,15 +2407,15 @@
   function loadDrawerState() {
     try {
       const raw = localStorage.getItem(MAP_DRAWER_KEY);
-      if (!raw) return { open: true, width: MAP_DRAWER_DEFAULT, height: null };
+      if (!raw) return { open: false, width: MAP_DRAWER_DEFAULT, height: null };
       const parsed = JSON.parse(raw);
       return {
-        open: parsed.open !== false,
+        open: false,
         width: Number.isFinite(parsed.width) ? parsed.width : MAP_DRAWER_DEFAULT,
         height: Number.isFinite(parsed.height) ? parsed.height : null,
       };
     } catch (_) {
-      return { open: true, width: MAP_DRAWER_DEFAULT, height: null };
+      return { open: false, width: MAP_DRAWER_DEFAULT, height: null };
     }
   }
 
@@ -2470,7 +2471,7 @@
     if (saved.height) {
       wrap.style.setProperty("--map-drawer-open-height", `${clampDrawerHeight(saved.height)}px`);
     }
-    setDrawerOpen(saved.open, false);
+    setDrawerOpen(false, false);
 
     tab.addEventListener("click", () => {
       setDrawerOpen(wrap.classList.contains("drawer-closed"), true);
@@ -2814,7 +2815,7 @@
     if (KIOSK) return;
     const res = await fetch("/api/auth/me");
     if (res.status === 401) {
-      location.href = "/login?next=" + encodeURIComponent(location.pathname + location.hash);
+      location.href = "/?next=" + encodeURIComponent(location.pathname + location.hash);
       throw new Error("login required");
     }
     const data = await res.json();
@@ -2925,7 +2926,7 @@
 
   $("logout-btn")?.addEventListener("click", async () => {
     await apiSend("POST", "/api/auth/logout", {});
-    location.href = "/login";
+    location.href = "/";
   });
   $("admin-open")?.addEventListener("click", () => setView("admin"));
   $("pw-form")?.addEventListener("submit", async (ev) => {

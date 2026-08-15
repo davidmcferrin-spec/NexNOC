@@ -179,10 +179,10 @@ python3 server.py --config config.json --db /var/lib/nexnoc/noc.db --port 8080
 ```
 
 `--config` is optional (bootstraps if given). Open http://127.0.0.1:8080
-and sign in (seeded `admin` / `password` or `user` / `password` — change
-both on first login). `/kiosk` is an anonymous wall board and stays
-public. The page polls `/api/state` every 5 seconds — no WebSocket stack.
-Bind defaults to localhost.
+to sign in (seeded `admin` / `password` or `user` / `password` — change
+both on first login). The board is `/dashboard`. `/kiosk` is an anonymous
+wall board and stays public. The page polls `/api/state` every 5 seconds —
+no WebSocket stack. Bind defaults to localhost.
 
 The map is Leaflet (vendored in `web/vendor/leaflet/`, no npm). Dev uses
 Carto Dark Matter tiles from the public CDN — pan, zoom, real geography.
@@ -251,7 +251,8 @@ per-user grant/deny overrides win.
 
 `/kiosk` stays anonymous. `GET /api/state` and `GET /api/time` stay public
 so the wall board can poll; unauthenticated `/api/state` omits credential
-slot names and `*_set` flags. `GET /` and all writes require a session.
+slot names and `*_set` flags. `GET /` is the login page. `GET /dashboard`
+and all writes require a session.
 
 LDAP uses LDAPS user bind via system `ldapsearch` (`apt install ldap-utils`).
 Type only the sAMAccountName; set bind template to `{username}@nexstar.tv`.
@@ -290,7 +291,7 @@ writes are refused if the audit line cannot be written.
 | `drivers/net_insight.py` | Net Insight default driver |
 | `poller.py` | Bootstrap (config → DB) + driver resolution + async health poll loop + CLI |
 | `server.py` | Stdlib HTTP server: `web/` frontend + `/api/state` + device detail |
-| `web/` | Dashboard (Leaflet map, links table, inventory, kiosk) — vanilla HTML/CSS/JS |
+| `web/` | `index.html` login, `dashboard.html` board (Leaflet map, links, inventory, kiosk) |
 | `web/vendor/leaflet/` | Vendored Leaflet 1.9.4 (no npm) |
 | `scripts/fetch_tiles.py` | Build a local CONUS XYZ tile pack for air-gapped / production use |
 | `config.example.json` | Template multi-vendor inventory config (includes example trunks/signals) |

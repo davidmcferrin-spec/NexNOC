@@ -12,9 +12,9 @@ Run (after bootstrap):
 Optionally bootstrap on start:
     python3 server.py --config config.json --db noc.db
 
-Bind defaults to 127.0.0.1. Local + LDAP login gates the main board and
-all writes. GET /kiosk, /api/state, and /api/time stay anonymous so the
-wall board works without a session.
+Bind defaults to 127.0.0.1. GET / is the login page. Local + LDAP login
+gates /dashboard and all writes. GET /kiosk, /api/state, and /api/time
+stay anonymous so the wall board works without a session.
 """
 
 from __future__ import annotations
@@ -669,7 +669,9 @@ _UPLOAD_PIN = re.compile(r"^/uploads/pins/([A-Za-z0-9._-]+)$")
 
 def _safe_web_path(url_path: str) -> Optional[Path]:
     rel = url_path.lstrip("/")
-    if not rel or rel == "kiosk":
+    if rel in ("kiosk", "dashboard"):
+        rel = "dashboard.html"
+    elif not rel:
         rel = "index.html"
     candidate = (WEB_ROOT / rel).resolve()
     try:
@@ -777,13 +779,18 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
                 return
 
             if path in ("/login", "/login.html"):
-                login = WEB_ROOT / "login.html"
+                self._redirect("/dashboard" if user else "/")
+                return
+            if path in ("/", "/index.html"):
+                if user:
+                    self._redirect("/dashboard")
+                    return
+                login = WEB_ROOT / "index.html"
                 if login.is_file():
                     self._send_file(login)
                     return
-            if path in ("/", "/index.html") and not user:
-                nxt = next_url(path if path != "/" else "/")
-                self._redirect(f"/login?next={nxt}")
+            if path in ("/dashboard", "/dashboard.html") and not user:
+                self._redirect(f"/?next={next_url(path)}")
                 return
 
             target = _safe_web_path(path)

@@ -439,13 +439,20 @@ def request_is_secure(headers) -> bool:
     return proto == "https"
 
 
+_LOGIN_PATHS = {"", "/", "/index.html", "/login", "/login.html"}
+
+
 def next_url(raw: str) -> str:
-    value = (raw or "/").strip() or "/"
+    value = (raw or "/dashboard").strip() or "/dashboard"
     if not value.startswith("/") or value.startswith("//"):
-        return "/"
+        return "/dashboard"
     if any(ch in value for ch in ("\r", "\n", "\\")):
-        return "/"
-    return value
+        return "/dashboard"
+    path, qsep, query = value.partition("?")
+    path_only, hsep, fragment = path.partition("#")
+    if path_only in _LOGIN_PATHS:
+        path_only = "/dashboard"
+    return path_only + (hsep + fragment) + (qsep + query)
 
 
 def parse_query(path: str) -> dict[str, str]:

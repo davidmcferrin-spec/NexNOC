@@ -96,7 +96,8 @@ license mgmt, config backup, routing control, kiosk board.
   including status pills — because stale health is untrusted.
   Local + LDAPS auth (`auth.py`): roles viewer / operator / admin, seeded
   `admin`/`password` and `user`/`password`. `/kiosk` and `/api/state` stay
-  anonymous; writes and `GET /` require a session. LDAP via `ldapsearch`.
+  anonymous; writes and `GET /dashboard` require a session. `GET /` is
+  the login page (`index.html`); the board is `dashboard.html`. LDAP via `ldapsearch`.
 - ⬜ Phase 3: License tracking, config backup/diff/restore — per driver,
   blocked on confirmed API/SNMP/OID details for each.
 - ⬜ Phase 4: Routing control workflow (propose/diff/confirm/execute/audit).

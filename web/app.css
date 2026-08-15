@@ -118,9 +118,8 @@ main { flex: 1; min-height: 0; display: flex; }
   pointer-events: none;
 }
 .map-drawer-tab {
-  grid-area: 1 / 1;
   position: absolute;
-  right: 0;
+  right: var(--map-drawer-width);
   top: 50%;
   transform: translateY(-50%);
   z-index: 800;
@@ -135,6 +134,10 @@ main { flex: 1; min-height: 0; display: flex; }
   cursor: pointer;
   font: inherit;
   line-height: 1;
+  transition: right 0.22s ease;
+}
+.map-wrap.drawer-resizing .map-drawer-tab {
+  transition: none;
 }
 .map-drawer-tab:hover {
   color: var(--text);
@@ -751,13 +754,14 @@ body.kiosk .pin-dot { width: 14px; height: 14px; left: 0; top: 17px; }
     right: auto;
     left: 50%;
     top: auto;
-    bottom: 0;
+    bottom: var(--map-drawer-height);
     transform: translateX(-50%);
     width: 56px;
     height: 18px;
     border-right: 1px solid var(--border);
     border-bottom: 0;
     border-radius: 6px 6px 0 0;
+    transition: bottom 0.22s ease;
   }
   .map-drawer-chevron {
     transform: rotate(-90deg);
@@ -805,12 +809,6 @@ body.kiosk .user-box,
 body.kiosk [data-view="admin"],
 body.kiosk #view-admin { display: none !important; }
 
-.auth-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%;
-}
 .auth-card {
   width: min(420px, 92vw);
   background: var(--panel);
@@ -818,16 +816,9 @@ body.kiosk #view-admin { display: none !important; }
   border-radius: 12px;
   padding: 28px 24px;
 }
-.auth-logo {
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  font-size: 18px;
-  margin-bottom: 8px;
-}
-.auth-card h1, .auth-card h2 { margin: 0 0 6px; font-size: 22px; }
-.auth-subtitle, .hint { color: var(--muted); margin: 0 0 16px; }
-.auth-form, .auth-card label { display: flex; flex-direction: column; gap: 6px; }
-.auth-card label { margin-bottom: 12px; color: var(--muted); font-size: 13px; }
+.auth-card h2 { margin: 0 0 6px; font-size: 22px; }
+.hint { color: var(--muted); margin: 0 0 16px; }
+.auth-card label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; color: var(--muted); font-size: 13px; }
 .auth-card input, .auth-card select {
   background: var(--panel-2);
   color: var(--text);
@@ -845,8 +836,6 @@ body.kiosk #view-admin { display: none !important; }
   padding: 8px 10px;
   margin-bottom: 12px;
 }
-.auth-kiosk { text-align: center; margin: 16px 0 0; }
-.auth-kiosk a { color: var(--accent); }
 
 .pw-modal {
   position: fixed;
