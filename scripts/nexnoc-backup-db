@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Online SQLite backup for NexNOC. Safe to run while nexnoc-poller /
+# nexnoc-web are up (WAL mode; sqlite3 .backup takes a read lock, does not
+# block writers). Intended for cron — see docs/DEPLOY.md.
+#
+#   sudo -u nexnoc /opt/nexnoc/scripts/nexnoc-backup-db
+#
+# Env overrides: NEXNOC_DATA (default /var/lib/nexnoc), NEXNOC_BACKUP_DIR
+# (default ${NEXNOC_DATA}/backups), NEXNOC_BACKUP_KEEP (default 14, days).
+set -euo pipefail
+
+DATA="${NEXNOC_DATA:-/var/lib/nexnoc}"
+BACKUP_DIR="${NEXNOC_BACKUP_DIR:-${DATA}/backups}"
+KEEP_DAYS="${NEXNOC_BACKUP_KEEP:-14}"
+DB="${DATA}/noc.db"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+DEST="${BACKUP_DIR}/noc-${STAMP}.db"
+
+if [[ ! -f "${DB}" ]]; then
+  echo "no db at ${DB}, nothing to back up" >&2
+  exit 1
+fi
+
+mkdir -p "${BACKUP_DIR}"
+sqlite3 "${DB}" ".backup '${DEST}'"
+gzip "${DEST}"
+find "${BACKUP_DIR}" -name 'noc-*.db.gz' -mtime "+${KEEP_DAYS}" -delete
+
+echo "backed up ${DB} -> ${DEST}.gz"

@@ -20,7 +20,7 @@ from typing import Any, Optional
 
 from drivers.base import DiscoveryResult, DriverError, DriverAuthError, DriverUnreachableError
 
-DEFAULT_TIMEOUT_SECONDS = 5.0
+DEFAULT_TIMEOUT_SECONDS = 2.0
 
 
 @dataclass

@@ -155,6 +155,9 @@ sync_code() {
   if [[ -f "${PREFIX}/scripts/nexnoc-traphandle" ]]; then
     chmod 755 "${PREFIX}/scripts/nexnoc-traphandle"
   fi
+  if [[ -f "${PREFIX}/scripts/nexnoc-backup-db" ]]; then
+    chmod 755 "${PREFIX}/scripts/nexnoc-backup-db"
+  fi
   ok "rsync ${ROOT} → ${PREFIX}"
 }
 
@@ -352,6 +355,33 @@ cmd_check() {
     warn "loopback /api/state not reachable — start nexnoc-web"
   fi
 
+  step "Go-live checklist (docs/DEPLOY.md)"
+  if [[ -f /etc/apache2/sites-available/nexnoc.conf ]] \
+      && grep -q '^\s*<VirtualHost \*:443>' /etc/apache2/sites-available/nexnoc.conf; then
+    ok "TLS vhost present"
+  else
+    warn "no :443 vhost — site is plaintext HTTP; see docs/DEPLOY.md #1 (TLS)"
+  fi
+  if command -v ufw >/dev/null 2>&1; then
+    if ufw status 2>/dev/null | grep -qi "^Status: active"; then
+      ok "ufw active"
+    else
+      warn "ufw installed but inactive — see docs/DEPLOY.md #2 (firewall)"
+    fi
+  else
+    warn "no firewall tool detected — see docs/DEPLOY.md #2 (firewall)"
+  fi
+  if [[ -d "${DATA}/backups" ]] && find "${DATA}/backups" -name 'noc-*.db.gz' -mtime -2 2>/dev/null | grep -q .; then
+    ok "recent DB backup found in ${DATA}/backups"
+  else
+    warn "no DB backup within 2 days — see docs/DEPLOY.md #4 (backup)"
+  fi
+  if grep -q '=change_me' "${ETC}/nexnoc.env" 2>/dev/null; then
+    warn "nexnoc.env still has change_me placeholders — see docs/DEPLOY.md #3 (credentials)"
+  else
+    ok "no change_me placeholders in nexnoc.env"
+  fi
+
   if (( ${#WARNINGS[@]} > 0 )); then
     echo
     echo "Warnings:"
@@ -391,6 +421,9 @@ Next:
      then set map.local_tile_dir to ${DATA}/tiles in config.json and restart nexnoc-web
   4. sudo ${PREFIX}/setup.sh update   # after git pull, or re-run install
   5. sudo systemctl restart nexnoc-poller
+
+Before calling this production: docs/DEPLOY.md (TLS, firewall, credential
+sweep, DB backups). sudo ${PREFIX}/setup.sh --check flags what's still open.
 
 Maintenance:
   sudo $0 update

@@ -6,9 +6,11 @@ Responsibilities:
      into the DB (idempotent - safe to re-run after editing config.json to add
      a device or path). If config has no `flows` key, one flow is derived
      per legacy signal so the map still has directed hops.
-  2. Poll loop: every `poll_interval_seconds`, concurrently hit every enabled
-     device via its vendor adapter's ping(), record results to poll_log, and
-     update devices.status.
+  2. Poll loop: each enabled device is scheduled on its own
+     `poll_interval_seconds` cadence (default 30s), with a cap on how many
+     polls run at once. A hung box does not delay the others. ping() then
+     collect() via the resolved driver; results go to poll_log and
+     devices.status.
   3. Retry/backoff: a single failed poll does not immediately mark a device
      unreachable - avoids flapping status on a dropped packet. Marks
      'unreachable' only after `consecutive_failures_threshold` misses in a row.
@@ -34,6 +36,8 @@ import json
 import logging
 import os
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -41,6 +45,7 @@ from typing import Optional
 
 from db import Database, Device
 from drivers.base import CollectResult, Driver, DriverResolutionError, resolve_driver
+from drivers.http_util import DEFAULT_TIMEOUT_SECONDS
 from drivers.registry import DRIVER_REGISTRY
 from drivers.snmp_util import SnmpTarget
 from envfile import default_env_path, get_value, upsert_values
@@ -49,6 +54,18 @@ from inventory_api import stamp_device_connectors
 logger = logging.getLogger("nexnoc.poller")
 
 CONSECUTIVE_FAILURES_THRESHOLD = 3  # misses in a row before status flips to 'unreachable'
+MAX_IN_FLIGHT = 32                  # concurrent device polls (thread pool + scheduler)
+HTTP_TIMEOUT_SECONDS = DEFAULT_TIMEOUT_SECONDS
+SCHEDULER_TICK_SECONDS = 0.25
+
+# Dedicated pool so a dark / hanging IP cannot starve the default executor.
+# Set by poll_loop; poll_device falls back to the default pool when None
+# (unit tests that call poll_device directly).
+_poll_executor: Optional[ThreadPoolExecutor] = None
+
+# One driver instance per device so Haivision can keep its session cookie.
+# Rebuilt when host / creds / driver identity change.
+_driver_cache: dict[int, tuple[tuple, Driver]] = {}
 
 # Old importer names → current site names. Applied on bootstrap so leftover
 # rows (e.g. "Washington DC - WDCW") collapse into the canonical site.
@@ -677,7 +694,74 @@ def build_driver(db: Database, device: Device) -> Driver:
         username=resolve_env(device.api_username_env),
         password=resolve_env(device.api_password_env),
         verify_tls=device.api_verify_tls,
+        timeout=HTTP_TIMEOUT_SECONDS,
     )
+
+
+def _driver_identity(device: Device) -> tuple:
+    """Fields that mean the cached driver instance is no longer valid."""
+    return (
+        device.vendor,
+        device.model,
+        device.firmware_version,
+        device.driver_override,
+        device.mgmt_host,
+        device.api_port,
+        device.api_scheme,
+        device.api_verify_tls,
+        device.api_username_env,
+        device.api_password_env,
+        resolve_env(device.api_username_env),
+        resolve_env(device.api_password_env),
+        device.snmp_host,
+        device.snmp_port,
+        device.access_mode,
+        device.snmp_community_env,
+        device.snmp_v3_user_env,
+        device.snmp_v3_auth_pass_env,
+        device.snmp_v3_priv_pass_env,
+        device.snmp_v3_sec_level,
+        device.snmp_v3_auth_proto,
+        device.snmp_v3_priv_proto,
+        device.snmp_version,
+        resolve_env(device.snmp_community_env),
+        resolve_env(device.snmp_v3_user_env),
+        resolve_env(device.snmp_v3_auth_pass_env),
+        resolve_env(device.snmp_v3_priv_pass_env),
+    )
+
+
+def cached_driver(db: Database, device: Device) -> Driver:
+    """Reuse the last driver for this device when identity is unchanged."""
+    key = _driver_identity(device)
+    hit = _driver_cache.get(device.id)
+    if hit is not None and hit[0] == key:
+        return hit[1]
+    driver = build_driver(db, device)
+    _driver_cache[device.id] = (key, driver)
+    return driver
+
+
+def _prune_driver_cache(live_ids: set[int]) -> None:
+    for stale in [did for did in _driver_cache if did not in live_ids]:
+        _driver_cache.pop(stale, None)
+
+
+def devices_due(
+    devices: list[Device],
+    last_started: dict[int, float],
+    in_flight_ids: set[int],
+    now: float,
+    interval: float,
+) -> list[Device]:
+    """Devices whose interval has elapsed and that are not already running."""
+    due: list[Device] = []
+    for device in devices:
+        if device.id in in_flight_ids:
+            continue
+        if now - last_started.get(device.id, 0.0) >= interval:
+            due.append(device)
+    return due
 
 
 # Track consecutive failures in memory - resets on process restart, which is
@@ -782,7 +866,7 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
 
     if has_api:
         try:
-            driver = build_driver(db, device)
+            driver = cached_driver(db, device)
             outcome.driver_id = driver.driver_id
         except DriverResolutionError as exc:
             logger.error("Cannot poll device %r: %s", device.name, exc)
@@ -794,7 +878,7 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
             api_ok = False
         else:
             try:
-                api_ok = await loop.run_in_executor(None, driver.ping)
+                api_ok = await loop.run_in_executor(_poll_executor, driver.ping)
             except NotImplementedError as exc:
                 logger.error("Device %r: %s", device.name, exc)
                 db.record_poll(device.id, method=method, success=False, error_message=str(exc))
@@ -808,7 +892,7 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
                                 error_message=None if api_ok else "API ping failed")
                 if api_ok:
                     try:
-                        snapshot = await loop.run_in_executor(None, driver.collect)
+                        snapshot = await loop.run_in_executor(_poll_executor, driver.collect)
                         collect_flag = "ok" if snapshot is not None else "empty"
                     except Exception:  # noqa: BLE001
                         logger.exception("collect() failed for device %r after successful ping", device.name)
@@ -816,9 +900,9 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
 
     if device.access_mode == "direct_snmp" and not has_api:
         try:
-            driver = build_driver(db, device)
+            driver = cached_driver(db, device)
             outcome.driver_id = driver.driver_id
-            snmp_ok = await loop.run_in_executor(None, driver.ping)
+            snmp_ok = await loop.run_in_executor(_poll_executor, driver.ping)
         except DriverResolutionError as exc:
             logger.error("Cannot poll device %r: %s", device.name, exc)
             db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
@@ -836,7 +920,9 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
                             error_message=None if snmp_ok else "SNMP GET failed")
             if snmp_ok and snmp_target is not None:
                 try:
-                    snap = await loop.run_in_executor(None, lambda: driver.snmp_collect(snmp_target))
+                    snap = await loop.run_in_executor(
+                        _poll_executor, lambda: driver.snmp_collect(snmp_target),
+                    )
                     if snapshot is None:
                         snapshot = snap
                     collect_flag = "ok" if snap is not None else collect_flag
@@ -845,7 +931,7 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
     elif snmp_target is not None:
         if driver is None:
             try:
-                driver = build_driver(db, device)
+                driver = cached_driver(db, device)
                 outcome.driver_id = driver.driver_id
             except (DriverResolutionError, NotImplementedError) as exc:
                 logger.error("Cannot SNMP-poll device %r: %s", device.name, exc)
@@ -853,7 +939,9 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
                 snmp_ok = False
         if driver is not None:
             try:
-                snmp_ok = await loop.run_in_executor(None, lambda: driver.snmp_ping(snmp_target))
+                snmp_ok = await loop.run_in_executor(
+                    _poll_executor, lambda: driver.snmp_ping(snmp_target),
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.exception("SNMP GET failed for device %r", device.name)
                 snmp_ok = False
@@ -864,7 +952,7 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
                 if snmp_ok and snapshot is None:
                     try:
                         snapshot = await loop.run_in_executor(
-                            None, lambda: driver.snmp_collect(snmp_target),
+                            _poll_executor, lambda: driver.snmp_collect(snmp_target),
                         )
                         collect_flag = "ok" if snapshot is not None else collect_flag
                     except Exception:  # noqa: BLE001
@@ -959,18 +1047,89 @@ def _summarize_cycle(outcomes: list[PollOutcome]) -> None:
     )
 
 
-async def poll_loop(db: Database, interval_seconds: int) -> None:
-    logger.info("Starting poll loop, interval=%ds (use --verbose for per-device lines)",
-                interval_seconds)
-    while True:
-        devices = db.list_devices()
-        if not devices:
-            logger.warning("No devices in database - nothing to poll. Run bootstrap first.")
-        else:
-            logger.info("Polling %d device(s)", len(devices))
-            outcomes = await asyncio.gather(*(poll_device(db, d) for d in devices))
-            _summarize_cycle(list(outcomes))
-        await asyncio.sleep(interval_seconds)
+async def poll_loop(
+    db: Database,
+    interval_seconds: int,
+    *,
+    max_in_flight: int = MAX_IN_FLIGHT,
+    tick_seconds: float = SCHEDULER_TICK_SECONDS,
+) -> None:
+    """Per-device cadence: start a poll when `interval` has elapsed since
+    that device last *started*, skip if still in flight, cap concurrency.
+    A hung box stays in-flight until it finishes; everyone else keeps
+    cycling."""
+    global _poll_executor
+    executor = ThreadPoolExecutor(
+        max_workers=max_in_flight, thread_name_prefix="nexnoc-poll",
+    )
+    _poll_executor = executor
+    last_started: dict[int, float] = {}
+    in_flight: dict[int, asyncio.Task] = {}
+    completed: list[PollOutcome] = []
+    last_summary = time.monotonic()
+    warned_empty = False
+
+    logger.info(
+        "Starting poll loop, interval=%ds, max_in_flight=%d, http_timeout=%.1fs "
+        "(use --verbose for per-device lines)",
+        interval_seconds, max_in_flight, HTTP_TIMEOUT_SECONDS,
+    )
+    try:
+        while True:
+            now = time.monotonic()
+            finished = [did for did, task in in_flight.items() if task.done()]
+            for did in finished:
+                task = in_flight.pop(did)
+                try:
+                    completed.append(task.result())
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.exception("poll task failed for device id=%s", did)
+
+            devices = db.list_devices()
+            live_ids = {d.id for d in devices}
+            for stale in [did for did in last_started if did not in live_ids and did not in in_flight]:
+                last_started.pop(stale, None)
+            _prune_driver_cache(live_ids)
+
+            if not devices:
+                if not warned_empty:
+                    logger.warning("No devices in database - nothing to poll. Run bootstrap first.")
+                    warned_empty = True
+            else:
+                warned_empty = False
+                due = devices_due(
+                    devices, last_started, set(in_flight), now, interval_seconds,
+                )
+                started = 0
+                for device in due:
+                    if len(in_flight) >= max_in_flight:
+                        break
+                    last_started[device.id] = time.monotonic()
+                    in_flight[device.id] = asyncio.create_task(poll_device(db, device))
+                    started += 1
+                if started:
+                    logger.debug(
+                        "Started %d poll(s); %d in flight of %d device(s)",
+                        started, len(in_flight), len(devices),
+                    )
+
+            if now - last_summary >= interval_seconds:
+                if completed:
+                    _summarize_cycle(completed)
+                    completed = []
+                last_summary = now
+
+            await asyncio.sleep(tick_seconds)
+    finally:
+        pending = list(in_flight.values())
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        executor.shutdown(wait=False)
+        _poll_executor = None
 
 
 def run_discovery(db: Database, device_name: str) -> None:

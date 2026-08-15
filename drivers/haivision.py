@@ -19,8 +19,15 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from drivers.base import CollectResult, DiscoveryResult, Driver, InventoryItem, sdi_layout
-from drivers.http_util import JsonHttpClient
+from drivers.base import (
+    CollectResult,
+    DiscoveryResult,
+    Driver,
+    DriverAuthError,
+    InventoryItem,
+    sdi_layout,
+)
+from drivers.http_util import DEFAULT_TIMEOUT_SECONDS, JsonHttpClient
 
 # Confirmed GET paths from Makito X4 Encoder 1.8.0 /apidoc.
 DISCOVERY_CANDIDATES = [
@@ -84,7 +91,7 @@ class HaivisionMakitoXDriver(Driver):
 
     def __init__(self, host: str, port: int = 443, scheme: str = "https",
                  username: Optional[str] = None, password: Optional[str] = None,
-                 verify_tls: bool = False, timeout: float = 5.0):
+                 verify_tls: bool = False, timeout: float = DEFAULT_TIMEOUT_SECONDS):
         self._username = username
         self._password = password
         self._logged_in = False
@@ -108,11 +115,20 @@ class HaivisionMakitoXDriver(Driver):
             return
         self.login()
 
+    def _authed_get_json(self, path: str):
+        """GET JSON, re-login once if the cached session cookie is rejected."""
+        self._ensure_session()
+        try:
+            return self._client.get_json(path)
+        except DriverAuthError:
+            self._logged_in = False
+            self._ensure_session()
+            return self._client.get_json(path)
+
     def ping(self) -> bool:
         try:
             if self._username and self._password is not None:
-                self._ensure_session()
-                self._client.get_json("/apis/status")
+                self._authed_get_json("/apis/status")
                 return True
             return self._client.ping("/apidoc")
         except Exception:  # noqa: BLE001 - ping must not raise
@@ -126,13 +142,11 @@ class HaivisionMakitoXDriver(Driver):
         return self._client.discover(candidates or DISCOVERY_CANDIDATES)
 
     def get_status(self) -> dict:
-        self._ensure_session()
-        payload = self._client.get_json("/apis/status")
+        payload = self._authed_get_json("/apis/status")
         return payload if isinstance(payload, dict) else {}
 
     def collect(self) -> Optional[CollectResult]:
         try:
-            self._ensure_session()
             status = self.get_status()
         except Exception as exc:  # noqa: BLE001
             return CollectResult(device_status="degraded", error=str(exc))
@@ -157,7 +171,7 @@ class HaivisionMakitoXDriver(Driver):
             ("/apis/vidin", "vidin"),
         ):
             try:
-                rows = _as_list(self._client.get_json(path))
+                rows = _as_list(self._authed_get_json(path))
             except Exception:  # noqa: BLE001 - one resource failing shouldn't abort
                 continue
             for i, row in enumerate(rows):
@@ -177,8 +191,7 @@ class HaivisionMakitoXDriver(Driver):
         )
 
     def get_json(self, path: str):
-        self._ensure_session()
-        return self._client.get_json(path)
+        return self._authed_get_json(path)
 
     def post_json(self, path: str, body: dict):
         self._ensure_session()

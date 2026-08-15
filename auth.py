@@ -61,23 +61,23 @@ PERMISSION_META = {
     },
     "manage_licenses": {
         "label": "Manage licenses",
-        "description": "Phase 3 — reserved.",
+        "description": "Reserved for a possible future license-tracking feature — not on the roadmap, unused.",
     },
     "manage_backups": {
         "label": "Manage backups",
-        "description": "Phase 3 — reserved.",
+        "description": "Reserved for a possible future config-backup feature — not on the roadmap, unused.",
     },
     "view_routing": {
         "label": "View routing",
-        "description": "Phase 4 — reserved.",
+        "description": "Reserved for a possible future routing control feature — not on the roadmap, unused.",
     },
     "propose_routing": {
         "label": "Propose routing",
-        "description": "Phase 4 — reserved.",
+        "description": "Reserved for a possible future routing control feature — not on the roadmap, unused.",
     },
     "execute_routing": {
         "label": "Execute routing",
-        "description": "Phase 4 — reserved.",
+        "description": "Reserved for a possible future routing control feature — not on the roadmap, unused.",
     },
 }
 

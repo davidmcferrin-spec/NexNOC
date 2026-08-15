@@ -1,16 +1,16 @@
 # NexNOC
 
 Multi-site, multi-vendor NOC/management tool for broadcast video/signal-path
-infrastructure: inventory, health monitoring, geo + topology map, license
-tracking, config backup, and controlled routing changes, with a kiosk
-"big board" display.
+infrastructure: inventory, health monitoring, geo + topology map, and a
+kiosk "big board" display.
 
-**Status: Phase 1–2 complete.** Sites/devices inventory across multiple
-vendors, a pluggable driver architecture, SQLite schema for all phases, an
-async health poller with automatic driver resolution, API/SNMP discovery
-tools, and a stdlib-only dashboard (geo map, trunk drill-down, filterable
-links table, inventory, kiosk board). Phase 3+ still blocked on confirmed
-per-vendor API/OID details.
+**Status: planned phases complete.** Sites/devices inventory across
+multiple vendors, a pluggable driver architecture, an async health
+poller with automatic driver resolution, API/SNMP discovery tools, and a
+stdlib-only dashboard (geo map, trunk drill-down, filterable links
+table, inventory, kiosk board), plus local+LDAP auth, SNMP GET/traps,
+and overlapping poll cadence. License tracking, config backup, and
+routing control are backlog ideas only — see Roadmap.
 
 ## Architecture: devices are driver-driven
 
@@ -110,6 +110,12 @@ sudo ./setup.sh status
 
 Overrides: `NEXNOC_PREFIX` `NEXNOC_DATA` `NEXNOC_ETC` `NEXNOC_SERVER_NAME`.
 
+`setup.sh` gets it running; it is not yet hardened for production by
+itself (plaintext HTTP, no firewall rules, no DB backup). Before treating
+an install as production, work through **[docs/DEPLOY.md](docs/DEPLOY.md)**
+— TLS, firewall, credential sweep, backups. `sudo ./setup.sh --check`
+flags what's still open from that list.
+
 ### Local / manual (no Apache)
 
 ```bash
@@ -140,17 +146,21 @@ python3 poller.py --config config.json --db /var/lib/nexnoc/noc.db
 python3 poller.py --verbose --log-file poller.log --config config.json --db noc.db
 ```
 
-Each cycle logs `Polling N device(s)` and a summary
-(`api X/Y ok, snmp X/Y ok`). `--verbose` (or `NEXNOC_VERBOSE=1`) adds a
-DEBUG line per device: `api=ok/fail/skip snmp=… collect=… status=…`.
+Each interval logs a summary of polls that finished since the last
+summary (`api X/Y ok, snmp X/Y ok`). `--verbose` (or `NEXNOC_VERBOSE=1`)
+adds a DEBUG line per device: `api=ok/fail/skip snmp=… collect=… status=…`.
 `--log-file` (or `NEXNOC_LOG_FILE`) writes a rotating file in addition to
 stdout. Production writes `/var/log/nexnoc/poller.log` and
 `journalctl -u nexnoc-poller -f`.
 
-Polls every device concurrently on `poll_interval_seconds` (config.json,
-default 30s), resolving and dispatching to the right driver automatically
-per device. A device flips to `unreachable` only after 3 consecutive
-missed polls (`CONSECUTIVE_FAILURES_THRESHOLD` in poller.py) — avoids
+Each device is scheduled on its own `poll_interval_seconds` cadence
+(config.json, default 30s) with up to 32 polls in flight — a hung box
+does not delay the others. Appear `ping()` hits only
+`/prometheus/system/metrics`; `collect()` still scrapes all four
+confirmed paths. HTTP timeout is 2s. Driver instances are cached so
+Haivision keeps its session cookie (re-login once on 401). SQLite uses
+WAL. A device flips to `unreachable` only after 3 consecutive missed
+polls (`CONSECUTIVE_FAILURES_THRESHOLD` in poller.py) — avoids
 status-flapping on a single dropped packet.
 
 All three channels are capable per device (operator can opt out):
@@ -262,7 +272,36 @@ ephemeral session (no row until an admin adds them).
 
 Idle timeout defaults to 120 minutes (Admin → Session). Audit log is
 `audit.jsonl` next to the DB (or `/var/lib/nexnoc/audit.jsonl`); inventory
-writes are refused if the audit line cannot be written.
+writes are refused if the audit line cannot be written — `audit.audit_writable()`
+is checked *before* the write proceeds, so a full disk or bad permission on
+the audit file blocks the change rather than silently losing the log entry.
+
+## SNMP monitoring and traps
+
+SNMP is a channel parallel to driver polling, not a replacement — a device
+polled via `direct_api` can still have SNMP GET and/or traps turned on for
+cross-checking. Per-device flags (`snmp_enabled`, `snmp_trap_enabled`,
+`snmp_version` v1/v2c/v3) live alongside the existing `access_mode` column.
+
+`trapd.py` is a stdlib-only SNMPv1/v2c BER decoder listening on UDP 162
+(`nexnoc-trapd.service`; needs `CAP_NET_BIND_SERVICE` or run on `--port 1162`
+in dev). SNMPv3 traps arrive via `snmptrapd`'s `traphandle`, piping a
+line-based payload into `trapd.py --from-snmptrapd`. Every trap is logged to
+`trap_log` (source IP, OID, varbinds — never the community string or v3
+secrets); traps that match a known device by `mgmt_host`/agent address (and
+community, for v1/v2c) also run through that device's resolved driver
+`interpret_trap()`, which can flip status to `degraded`/`healthy` immediately
+instead of waiting for the next poll cycle.
+
+## Inventory admin: merge and bulk operations
+
+`db.merge_devices(source, target)` folds a duplicate device entry into
+another: ports and flows move to the target (same-named ports collapse,
+flows remap to the surviving port), blank target fields (mgmt_host,
+credential env names, model/firmware) are backfilled from the source, then
+the source row is deleted. Exposed through the bulk inventory API
+(`POST .../bulk` with `merge_into`, or `patch`/`delete` across a set of ids)
+for admins cleaning up inventory without hand-editing SQLite.
 
 ## Security notes
 
@@ -272,17 +311,24 @@ writes are refused if the audit line cannot be written.
 - `api_verify_tls` defaults to `False` per-device because broadcast
   appliances commonly ship self-signed certs — an explicit per-device
   opt-out, not a silent global default.
-- Routing control (Phase 4) is intentionally **not** built on the same code
+- Routing control is **not implemented and not on the roadmap** (see
+  Roadmap section) — if it's ever built, it must not go on the same code
   path as the read-only poller. Permission names (`view_routing`,
-  `propose_routing`, `execute_routing`) are reserved on the admin role.
+  `propose_routing`, `execute_routing`) are already reserved on the admin
+  role, unused, in case it comes back.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `schema.sql` | Full DB schema for all phases (Phase 2+ tables created now, unused until built) |
-| `db.py` | SQLite data access layer — `Device` is vendor/driver-agnostic |
+| `schema.sql` | Full DB schema (live tables plus unused backlog tables: licenses, config_snapshots, routing_audit) |
+| `db.py` | SQLite data access layer — `Device` is vendor/driver-agnostic; also owns `merge_devices()` |
+| `inventory_api.py` | Inventory REST handlers: CRUD, bulk patch/delete/merge, port-direction inference |
+| `audit.py` | Append-only JSONL audit log; `audit_writable()` gates writes fail-closed |
 | `docs/DRIVERS.md` | How to add a vendor, model, or firmware-ranged driver |
+| `docs/ROUTING.md` | Routing control design — backlog idea, not on the roadmap, not implemented |
+| `docs/DEPLOY.md` | Go-live checklist: TLS, firewall, credential sweep, DB backups |
+| `scripts/nexnoc-backup-db` | Online SQLite backup (cron-friendly, gzip + retention) |
 | `drivers/base.py` | `Driver` contract + `resolve_driver()` matching logic |
 | `drivers/registry.py` | The list of every driver NexNOC knows about |
 | `drivers/http_util.py` | Shared HTTP/JSON transport (Appear, Haivision) |
@@ -327,11 +373,18 @@ Short version:
   pack in production) + city/hop drill-down + filterable source/destination
   table + inventory + kiosk. Live updates via 5s polling of `/api/state`
   (stdlib HTTP; no WebSocket).
-- **Phase 3** — License tracking (needs real API/SNMP/OID details per
-  vendor — discovery first) + config backup/diff/restore (`config_snapshots`
-  table already exists; needs a scheduled snapshot job + diff view).
-- **Phase 4** — Routing control: propose → diff → explicit confirm → push →
-  verify → `routing_audit` log. Separate auth scope from read-only viewing.
-  Cross-vendor routing (e.g. an Appear frame feeding a Haivision encoder)
-  needs its own design pass once Phase 1–3 land per vendor.
 - **Kiosk** — Done as `/kiosk` (same polling refresh as the operator UI).
+
+**Not on the roadmap — backlog ideas only** (nothing implemented, nothing
+scheduled; empty tables and reserved permission names stay in place so
+a later pickup does not need a schema migration):
+
+- **License tracking** (was "Phase 3") — per-device feature/expiry.
+  Needs confirmed API/SNMP/OID details per vendor first.
+- **Config backup/diff/restore** (was also "Phase 3") —
+  `config_snapshots` table already exists; needs a confirmed export
+  surface, a snapshot job, and a diff view.
+- **Routing control** (was "Phase 4") — propose → diff → explicit
+  confirm → push → verify → `routing_audit` log. A design pass exists
+  at **[docs/ROUTING.md](docs/ROUTING.md)** for reference if it's ever
+  picked back up.

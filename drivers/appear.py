@@ -18,6 +18,7 @@ Confirmed from a live DC X20 (Prometheus text, not a public REST manual):
     apr_x_sdi_video_mode, apr_x_sdi_edh_error_count, apr_x_pid_ts_bytes
     port_rx_rate / port_tx_rate (IpGateway)
 
+ping() GETs only /prometheus/system/metrics (cheap reachability).
 collect() GETs all four scrapes and merges samples. JSON/HTTP sub-APIs
 (MMI, IpGateway REST) remain unconfirmed. Phase 4 must not write to a
 frame from this driver.
@@ -28,7 +29,7 @@ from __future__ import annotations
 from typing import Optional
 
 from drivers.base import CollectResult, DiscoveryResult, Driver, InventoryItem, sdi_layout
-from drivers.http_util import JsonHttpClient
+from drivers.http_util import DEFAULT_TIMEOUT_SECONDS, JsonHttpClient
 from drivers.prometheus_util import (
     looks_like_prometheus,
     parse_prometheus,
@@ -36,13 +37,14 @@ from drivers.prometheus_util import (
 )
 
 # Confirmed scrape paths on the DC X20. Each family is a separate document;
-# collect() fetches all four and merges.
+# collect() fetches all four and merges. ping() uses only the first.
 PROMETHEUS_PATHS = [
     "/prometheus/system/metrics",
     "/prometheus/product/metrics",
     "/prometheus/ipgateway/metrics",
     "/prometheus/alarms/metrics",
 ]
+PING_PATH = PROMETHEUS_PATHS[0]
 DISCOVERY_CANDIDATES = list(PROMETHEUS_PATHS)
 
 
@@ -59,7 +61,7 @@ class AppearXPlatformDriver(Driver):
 
     def __init__(self, host: str, port: int = 443, scheme: str = "https",
                  username: Optional[str] = None, password: Optional[str] = None,
-                 verify_tls: bool = False, timeout: float = 5.0):
+                 verify_tls: bool = False, timeout: float = DEFAULT_TIMEOUT_SECONDS):
         headers = {}
         if username is not None and password is not None:
             from base64 import b64encode
@@ -69,9 +71,12 @@ class AppearXPlatformDriver(Driver):
             host=host, port=port, scheme=scheme, verify_tls=verify_tls,
             timeout=timeout, extra_headers=headers,
         )
+
     def ping(self) -> bool:
+        """Reachability only — one confirmed scrape, not the full collect set."""
         try:
-            return self._fetch_metrics() is not None
+            body = self._client.get_text(PING_PATH)
+            return looks_like_prometheus(body)
         except Exception:  # noqa: BLE001 - ping must not raise
             return False
 

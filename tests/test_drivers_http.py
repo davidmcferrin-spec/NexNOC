@@ -18,6 +18,9 @@ class _FakeDeviceHandler(BaseHTTPRequestHandler):
     /secure requires Basic auth, /broken returns invalid JSON, /apidoc
     returns an HTML page (simulating Haivision's real on-device explorer)."""
 
+    get_hits: dict = {}
+    login_count = 0
+
     def log_message(self, format, *args):  # noqa: A002
         pass
 
@@ -25,6 +28,7 @@ class _FakeDeviceHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length) if length else b""
         if self.path == "/apis/authentication":
+            type(self).login_count += 1
             try:
                 payload = json.loads(body.decode() or "{}")
             except json.JSONDecodeError:
@@ -45,6 +49,7 @@ class _FakeDeviceHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        type(self).get_hits[self.path] = type(self).get_hits.get(self.path, 0) + 1
         if self.path == "/":
             self._send(200, b"ok", "text/plain")
         elif self.path == "/api/status":
@@ -182,6 +187,15 @@ class TestAppearDriver(unittest.TestCase):
         driver = AppearXPlatformDriver(host="127.0.0.1", port=self.port, scheme="http")
         self.assertTrue(driver.ping())
 
+    def test_ping_only_hits_system_metrics(self):
+        _FakeDeviceHandler.get_hits = {}
+        driver = AppearXPlatformDriver(host="127.0.0.1", port=self.port, scheme="http")
+        self.assertTrue(driver.ping())
+        self.assertEqual(_FakeDeviceHandler.get_hits.get("/prometheus/system/metrics"), 1)
+        self.assertNotIn("/prometheus/product/metrics", _FakeDeviceHandler.get_hits)
+        self.assertNotIn("/prometheus/alarms/metrics", _FakeDeviceHandler.get_hits)
+        self.assertNotIn("/prometheus/ipgateway/metrics", _FakeDeviceHandler.get_hits)
+
     def test_basic_auth_header_built_correctly(self):
         driver = AppearXPlatformDriver(host="127.0.0.1", port=self.port, scheme="http",
                                         username="admin", password="secret")
@@ -246,6 +260,59 @@ class TestHaivisionDriver(unittest.TestCase):
         slots = [m.slot for m in snap.modules]
         self.assertIn("system", slots)
         self.assertTrue(any(s.startswith("videnc:") for s in slots))
+
+    def test_session_reused_across_ping_and_collect(self):
+        _FakeDeviceHandler.login_count = 0
+        driver = HaivisionMakitoXDriver(
+            host="127.0.0.1", port=self.port, scheme="http",
+            username="admin", password="secret",
+        )
+        self.assertTrue(driver.ping())
+        self.assertTrue(driver.ping())
+        snap = driver.collect()
+        self.assertEqual(snap.device_status, "healthy")
+        self.assertEqual(_FakeDeviceHandler.login_count, 1)
+
+
+class _ExpireOnceHandler(_FakeDeviceHandler):
+    """First /apis/status after login is 401; later calls succeed."""
+    status_hits = 0
+
+    def do_GET(self):
+        if self.path == "/apis/status":
+            type(self).status_hits += 1
+            if type(self).status_hits == 1:
+                self.send_response(401)
+                self.end_headers()
+                return
+        return super().do_GET()
+
+
+class TestHaivisionSessionRetry(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _ExpireOnceHandler.status_hits = 0
+        _ExpireOnceHandler.login_count = 0
+        cls.server = HTTPServer(("127.0.0.1", 0), _ExpireOnceHandler)
+        cls.port = cls.server.server_address[1]
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.thread.join(timeout=2)
+
+    def test_relogin_after_401(self):
+        _ExpireOnceHandler.status_hits = 0
+        _ExpireOnceHandler.login_count = 0
+        driver = HaivisionMakitoXDriver(
+            host="127.0.0.1", port=self.port, scheme="http",
+            username="admin", password="secret",
+        )
+        self.assertTrue(driver.ping())
+        self.assertEqual(_ExpireOnceHandler.login_count, 2)
+        self.assertGreaterEqual(_ExpireOnceHandler.status_hits, 2)
 
 
 if __name__ == "__main__":

@@ -2,9 +2,12 @@
 -- Multi-vendor video/signal-path NOC: Appear, Haivision (Makito X4 etc.), Net Insight
 -- (Nimbra), and a generic SNMP fallback for anything else.
 --
--- Phase 1 tables (sites, devices, modules, poll_log, config_snapshots) are used now.
--- Phase 2+ tables (trunks, signals, licenses, routing_audit) exist now so the
--- schema doesn't need a migration later, but aren't populated until those phases land.
+-- Phase 1 tables (sites, devices, modules, poll_log) are used now.
+-- Phase 2 tables (trunks, signals) are used now.
+-- licenses, config_snapshots, and routing_audit are NOT part of an active
+-- phase (license tracking, config backup, and routing control are backlog
+-- ideas, not on the roadmap); kept only so the schema wouldn't need a
+-- migration if they are ever picked back up.
 --
 -- SQLite chosen deliberately: single-digit sites/devices is a small,
 -- single-writer workload. No server process to maintain, single file to
@@ -235,7 +238,8 @@ CREATE INDEX IF NOT EXISTS idx_flows_source ON flows(source_device_id);
 CREATE INDEX IF NOT EXISTS idx_flows_dest_site ON flows(dest_site_id);
 
 -- ---------------------------------------------------------------------------
--- Licenses (Phase 3)
+-- Licenses (backlog idea, not on the roadmap): unused; kept only so
+-- the schema wouldn't need a migration if license tracking is picked up.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS licenses (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -248,9 +252,10 @@ CREATE TABLE IF NOT EXISTS licenses (
 );
 
 -- ---------------------------------------------------------------------------
--- Config snapshots (Phase 3): periodic pulls of each device's full config for
--- backup / diff / restore. config_json stores the raw pulled config, in
--- whatever shape that vendor's API returns it.
+-- Config snapshots (backlog idea, not on the roadmap): unused; kept only
+-- so the schema wouldn't need a migration if config backup is picked up.
+-- config_json would store the raw pulled config in whatever shape that
+-- vendor's API returns it.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS config_snapshots (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -264,7 +269,9 @@ CREATE TABLE IF NOT EXISTS config_snapshots (
 CREATE INDEX IF NOT EXISTS idx_config_snapshots_device ON config_snapshots(device_id, taken_at);
 
 -- ---------------------------------------------------------------------------
--- Routing audit (Phase 4): every proposed/executed routing change, who did it
+-- Routing audit (backlog idea, not on the roadmap — see docs/ROUTING.md):
+-- every proposed/executed routing change, who did it. Unused; kept only so
+-- the schema wouldn't need a migration if this is ever picked back up.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS routing_audit (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

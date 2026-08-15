@@ -6,8 +6,9 @@ video/signal-path infrastructure, for David McFerrin (NewsNation/Nexstar).
 Started Appear-only (5 frames / 4 sites), generalized to multi-vendor
 (Appear, Haivision, Net Insight), then restructured around a **driver**
 abstraction so devices are matched to handling code by vendor+model+
-firmware, not just vendor. Full scope: inventory, health, geo+topology map,
-license mgmt, config backup, routing control, kiosk board.
+firmware, not just vendor. Planned scope: inventory, health, geo+topology
+map, kiosk board. License tracking, config backup, and routing control
+were pulled off the active roadmap — see "Future ideas" below.
 
 ## Decisions made so far
 - **Project renamed Appear-NOC → NexNOC**, then generalized to multi-vendor.
@@ -49,11 +50,35 @@ license mgmt, config backup, routing control, kiosk board.
   proxy. MySQL is not implemented.
 - **Stack constraint**: stdlib-only Python (no pip beyond stdlib), no
   Docker, no Node.
-- **Routing control is explicitly NOT built on the poller's code path.**
-  Production risk feature — needs its own auth gate, confirm/diff step,
-  and audit trail before it touches a live device.
+- **SNMP is a real, implemented parallel channel, not just an
+  `access_mode` category.** Per-device `snmp_enabled` (GET alongside the
+  vendor API, v1/v2c/v3, `snmp_version` CHECK-constrained) and
+  `snmp_trap_enabled` (accept traps) are independent flags — a device can
+  be `access_mode=direct_api` and still have SNMP GET/traps on for
+  cross-checking. `trapd.py` is a stdlib-only SNMPv1/v2c BER decoder
+  (no pysnmp) listening on UDP 162; v3 traps come in via `snmptrapd`'s
+  `traphandle` piping a line-based payload to
+  `trapd.py --from-snmptrapd`. Traps are matched to a device by
+  `mgmt_host`/`agent_addr` + community (v3 trusts the transport instead of
+  checking a community), logged to `trap_log` regardless of match, and —
+  only if matched — run through the resolved driver's `interpret_trap()`
+  to flip device status (`degraded`/`healthy`) without waiting for the
+  next poll. Community strings and v3 secrets are never stored or logged,
+  only used in-memory to match.
+- **Device merge exists for inventory cleanup** (e.g. a device got added
+  twice, or discovered under two hostnames): `db.merge_devices(source,
+  target)` moves ports/flows/poll history onto the target (same-named
+  ports collapse, flows get remapped to the surviving port id), backfills
+  blank target fields (mgmt_host, credentials, model, firmware) from the
+  source, then deletes the source. Exposed via bulk inventory API
+  (`merge_into` in a bulk device-collection body), alongside bulk
+  patch/delete for other collections.
+- **Audit logging is fail-closed.** `audit.audit_writable()` is checked
+  *before* an inventory write is allowed to proceed — if the audit line
+  can't be appended (disk full, permissions), the write itself is
+  refused, not just unlogged. Log is append-only JSONL, rotates at 10MB.
 
-## Known unknowns per vendor — READ BEFORE BUILDING PHASE 2/3
+## Known unknowns per vendor — READ BEFORE ADDING VENDOR-SPECIFIC PARSING
 - **Appear**: No public REST manual. Live DC X20 Prometheus is confirmed
   at `/prometheus/system/metrics`, `/prometheus/product/metrics`,
   `/prometheus/ipgateway/metrics`, `/prometheus/alarms/metrics`. Metric
@@ -73,11 +98,10 @@ license mgmt, config backup, routing control, kiosk board.
   from the web GUI — pull that for real OIDs before building beyond basic
   MIB-2 reachability.
 - **General rule**: do not invent or assume specific endpoint paths, OIDs,
-  or response schemas for Phase 2/3 parsing logic. Confirm first,
-  implement second.
+  or response schemas. Confirm first, implement second.
 
 ## Phase status
-- ✅ Phase 1: DB schema (all phases, vendor/driver-agnostic `devices`
+- ✅ Phase 1: DB schema (vendor/driver-agnostic `devices`
   table), sites/devices bootstrap from `config.json`, async health poller
   with automatic driver resolution + dispatch (reachability-only),
   `discover()` CLI tool for HTTP-based drivers, unit tests including a
@@ -98,37 +122,78 @@ license mgmt, config backup, routing control, kiosk board.
   `admin`/`password` and `user`/`password`. `/kiosk` and `/api/state` stay
   anonymous; writes and `GET /dashboard` require a session. `GET /` is
   the login page (`index.html`); the board is `dashboard.html`. LDAP via `ldapsearch`.
-- ⬜ Phase 3: License tracking, config backup/diff/restore — per driver,
-  blocked on confirmed API/SNMP/OID details for each.
-- ⬜ Phase 4: Routing control workflow (propose/diff/confirm/execute/audit).
-  Cross-vendor routing (e.g. Appear frame → Haivision encoder) needs its
-  own design pass, not yet scoped.
 - ✅ Kiosk board (`/kiosk`; same polling layer as Phase 2).
+- ✅ Out-of-phase-order infrastructure (not on the Phase 1–2 roadmap, but
+  live): local+LDAP auth/RBAC (see Phase 2 entry above), SNMP GET +
+  trap ingestion (v1/v2c/v3) as a channel parallel to driver polling,
+  device merge + bulk inventory patch/delete, fail-closed audit logging,
+  overlapping poller cadence (~80-device freshness).
 
-## Later / back burner — poller freshness (~80 devices, 10s)
-Do **not** treat flipping `poll_interval_seconds` to 10 as the fix.
-Expected fleet is ~80 devices (two national networks). Target is ~10s
-**time-to-glass**, not a 10s config knob. Today's loop already
-`asyncio.gather`s every device, then **sleeps after the slowest one
-finishes**. Appear `ping()` scrapes all four Prometheus paths and
-`collect()` does it again; Haivision builds a new driver (and re-logins)
-every poll; HTTP timeout is 5s (Appear ping can burn ~20s if paths hang);
-default `run_in_executor` pool is `min(32, CPU+4)`. A handful of dark
-IPs will miss a 10s SLA.
+The planned phases are done. Do not start a new product phase unless
+David asks for one.
 
-When visiting this: keep stdlib + SQLite + **one poller process**. Work
-order: overlapping per-device cadence (a hung box must not delay the
-X20s), ~32 in-flight cap, cheap ping vs full collect, ~2s timeouts,
-Haivision session reuse, SQLite WAL. Keep 3-miss hysteresis (~30s to
-`unreachable`). Sub-10s breaks stay on traps (`nexnoc-trapd`). Board
-`/api/state` every 5s is fine (typical notice ~10–15s after the poller
-writes). Do not shard, add MySQL, or add per-site agents at this size.
+## Production hardening (docs/DEPLOY.md)
+`setup.sh` produces a working install, not a hardened one. Go-live gaps
+tracked in **docs/DEPLOY.md** and surfaced by `setup.sh --check`: TLS is
+off by default (vhost ships commented out; `auth.request_is_secure()`
+already does the right thing off `X-Forwarded-Proto`, so enabling TLS is
+purely an Apache/certbot step, no code change); no firewall rules are
+applied (`nexnoc-trapd` binds UDP 162 on all interfaces — scope it to the
+device management subnet); no DB backup is scheduled
+(`scripts/nexnoc-backup-db` exists, needs a cron entry); `nexnoc.env`
+ships full of `change_me` placeholders that need real per-device values
+before the poller can reach anything. Log rotation, systemd hardening
+(`NoNewPrivileges`/`ProtectSystem=strict`/capability-scoped trapd), and
+credential-never-in-DB were already handled before this pass — don't
+re-flag them.
+
+## Future ideas — not scheduled
+Not on the active roadmap. No driver hooks or UI for these exist beyond
+empty schema tables and reserved permission names; don't build toward
+them opportunistically as a side effect of other work.
+- **License tracking** (was "Phase 3"): per-device feature/expiry from
+  vendor APIs or SNMP. Blocked on confirmed paths/OIDs — Appear
+  Prometheus has no license scrape confirmed; Haivision 1.8.0 has no
+  `/apis/license`; Net Insight needs the enterprise MIB first.
+  `licenses` stays in `schema.sql` unpopulated; `manage_licenses` stays
+  reserved in `auth.py`.
+- **Config backup/diff/restore** (was also "Phase 3"): scheduled snapshot
+  into `config_snapshots` (table already exists), plus a diff view.
+  Same confirmation block as licenses. `manage_backups` stays reserved.
+- **Routing control** (was "Phase 4"): propose → diff → explicit confirm →
+  push → verify → audit workflow to change which source port feeds a
+  flow's destination — pulled off the active roadmap. A design pass was
+  done and is kept for reference at **docs/ROUTING.md** (route =
+  `flows.source_port_id` edit, 3 new optional `Driver` methods, confirm as
+  a separate request from propose, no auto-rollback on an ambiguous
+  execute/verify failure) in case this gets picked back up, but treat it
+  as a backlog idea, not a plan — re-scope before touching it again.
+  `routing_audit` stays in `schema.sql` unpopulated (harmless — same
+  reasoning as `licenses` / `config_snapshots`); `view_routing` /
+  `propose_routing` / `execute_routing` stay reserved permission names in
+  `auth.py`, unassigned to any default role.
+
+## Poller freshness (~80 devices)
+Do **not** treat flipping `poll_interval_seconds` to 10 as the fix —
+leave the default at 30s. Expected fleet is ~80 devices (two national
+networks). Target is ~10s **time-to-glass**, not a 10s config knob.
+
+Implemented: overlapping per-device cadence (a hung box does not delay
+the others), 32 in-flight cap + dedicated `ThreadPoolExecutor`, Appear
+`ping()` only `/prometheus/system/metrics` (`collect()` still all four),
+2s HTTP timeout, Haivision driver cache + one 401 re-login, SQLite WAL
++ `busy_timeout=5000`. Keep 3-miss hysteresis (~30s to `unreachable`).
+Sub-10s breaks stay on traps (`nexnoc-trapd`). Board `/api/state` every
+5s is fine. Do not shard, add MySQL, or add per-site agents at this size.
 
 ## Conventions used in this codebase
 - No ORM — explicit SQL in `db.py`, deliberately (see docstring).
 - Blocking I/O (`urllib`, `subprocess`) runs via `loop.run_in_executor`
-  inside the asyncio poll loop — never call driver methods directly from
-  async code without offloading.
+  on a dedicated 32-worker pool inside the asyncio poll loop — never
+  call driver methods directly from async code without offloading.
+- The poller caches one `Driver` instance per device (Haivision session
+  cookies). Rebuilds when host/creds/model/firmware/override change.
+  `ping()` must stay cheap; HTTP timeout is 2s (`http_util`).
 - Credentials: DB/config store only env var *names*; values resolved from
   `os.environ` at poll time (`poller.py:resolve_env`). Never log credential
   values.

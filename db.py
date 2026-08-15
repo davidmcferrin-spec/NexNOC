@@ -227,6 +227,8 @@ class Database:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
         try:
             yield conn
             conn.commit()
@@ -823,7 +825,7 @@ class Database:
             ).fetchall()
 
     # ------------------------------------------------------------------
-    # Config snapshots (data layer only in Phase 1; capture logic lands Phase 3)
+    # Config snapshots (data layer only; capture/diff is a backlog idea)
     # ------------------------------------------------------------------
     def add_config_snapshot(self, device_id: int, config_hash: str, config_json: str,
                              note: str = "") -> int:

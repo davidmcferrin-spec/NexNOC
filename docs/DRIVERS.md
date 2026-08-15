@@ -26,7 +26,7 @@ drivers is `drivers/registry.py`.
 Device row (vendor, model, firmware_version, driver_override)
         │
         ▼
-resolve_driver()  →  driver class  →  new instance each poll
+resolve_driver()  →  driver class  →  cached instance (rebuilt if identity changes)
         │
         ▼
 devices.resolved_driver  (informational, written after each poll)
@@ -132,8 +132,13 @@ Raise these (not raw `urllib` exceptions) from HTTP helpers:
 - `DriverUnreachableError` — timeout / refused / DNS
 - `DriverResolutionError` — picking a driver failed (not your problem inside `ping`/`collect`)
 
-Drivers are **stateless**. The poller constructs a fresh instance every
-cycle. Do not hold long-lived connections.
+`ping()` must stay cheap — one confirmed reachability path, not a full
+inventory scrape. HTTP default timeout is 2s (`drivers/http_util.py`).
+
+The poller caches one driver instance per device so HTTP session cookies
+(Haivision) survive across polls. It rebuilds the instance when host,
+credentials, model/firmware, or driver override change. Do not hold
+connections that would block other devices.
 
 **Never** start/stop/edit/route from a poller driver. Write paths belong to
 Phase 4 (separate auth, confirm/diff, audit).
@@ -173,7 +178,7 @@ class AcmeWidgetDriver(Driver):
 
     def __init__(self, host: str, port: int = 443, scheme: str = "https",
                  username=None, password=None, verify_tls: bool = False,
-                 timeout: float = 5.0):
+                 timeout: float = 2.0):
         from drivers.http_util import JsonHttpClient
         self._client = JsonHttpClient(
             host=host, port=port, scheme=scheme,

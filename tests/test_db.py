@@ -22,6 +22,13 @@ class TestDatabase(unittest.TestCase):
         self.db.initialize()
         self.db.initialize()
 
+    def test_wal_and_busy_timeout(self):
+        with self.db.connect() as conn:
+            mode = conn.execute("PRAGMA journal_mode;").fetchone()[0]
+            timeout = conn.execute("PRAGMA busy_timeout;").fetchone()[0]
+        self.assertEqual(str(mode).lower(), "wal")
+        self.assertEqual(int(timeout), 5000)
+
     def test_add_and_list_sites(self):
         site_id = self.db.add_site("Huntsville HQ", city="Huntsville, AL", lat=34.73, lng=-86.58)
         sites = self.db.list_sites()
