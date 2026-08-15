@@ -175,15 +175,19 @@ install_svc_helper() {
   # No trailing " *" — sudo treats that as a single-argument glob, so
   # `status nexnoc-web` (two args) would require a password.
   # A command with no args matches that command with any arguments.
-  cat > /etc/sudoers.d/nexnoc-svc <<EOF
-# NexNOC Admin → Services. Units are allowlisted inside the helper.
-Defaults:nexnoc !requiretty
-nexnoc ALL=(root) NOPASSWD: ${PREFIX}/scripts/nexnoc-svc
-EOF
+  # Do not add a tty-required Defaults line — newer sudo rejects it.
+  # Strip CR so a Windows-checked-out setup.sh cannot poison visudo.
+  helper="${PREFIX}/scripts/nexnoc-svc"
+  helper="${helper//$'\r'/}"
+  {
+    printf '%s\n' "# NexNOC Admin Services. Units are allowlisted inside the helper."
+    printf '%s\n' "nexnoc ALL=(root) NOPASSWD: ${helper}"
+  } | tr -d '\r' > /etc/sudoers.d/nexnoc-svc
   chmod 440 /etc/sudoers.d/nexnoc-svc
   if command -v visudo >/dev/null 2>&1; then
-    visudo -cf /etc/sudoers.d/nexnoc-svc >/dev/null \
-      || fail "sudoers.d/nexnoc-svc failed visudo -cf"
+    if ! visudo_out="$(visudo -c -f /etc/sudoers.d/nexnoc-svc 2>&1)"; then
+      fail "sudoers.d/nexnoc-svc failed visudo -cf: ${visudo_out}"
+    fi
   fi
   ok "sudoers.d/nexnoc-svc → ${PREFIX}/scripts/nexnoc-svc"
   if sudo -u nexnoc sudo -n "${PREFIX}/scripts/nexnoc-svc" status nexnoc-web >/dev/null 2>&1; then
