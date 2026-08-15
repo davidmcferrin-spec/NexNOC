@@ -170,7 +170,7 @@ install_svc_helper() {
   chmod 755 "${PREFIX}/scripts/nexnoc-svc"
   cat > /etc/sudoers.d/nexnoc-svc <<EOF
 # NexNOC Admin → Services. Units are allowlisted inside the helper.
-nexnoc ALL=(root) NOPASSWD: ${PREFIX}/scripts/nexnoc-svc
+nexnoc ALL=(root) NOPASSWD: ${PREFIX}/scripts/nexnoc-svc *
 EOF
   chmod 440 /etc/sudoers.d/nexnoc-svc
   if command -v visudo >/dev/null 2>&1; then
@@ -178,6 +178,11 @@ EOF
       || fail "sudoers.d/nexnoc-svc failed visudo -cf"
   fi
   ok "sudoers.d/nexnoc-svc → ${PREFIX}/scripts/nexnoc-svc"
+  if sudo -u nexnoc sudo -n "${PREFIX}/scripts/nexnoc-svc" status nexnoc-web >/dev/null 2>&1; then
+    ok "nexnoc can run service helper (sudo -n)"
+  else
+    warn "nexnoc cannot sudo nexnoc-svc — Admin → Services will show unknown"
+  fi
 }
 
 install_config() {
@@ -377,7 +382,11 @@ cmd_check() {
     fi
   fi
   if [[ -x "${PREFIX}/scripts/nexnoc-svc" && -f /etc/sudoers.d/nexnoc-svc ]]; then
-    ok "Admin service helper + sudoers"
+    if sudo -u nexnoc sudo -n "${PREFIX}/scripts/nexnoc-svc" status nexnoc-web >/dev/null 2>&1; then
+      ok "Admin service helper works as nexnoc"
+    else
+      warn "nexnoc-svc is installed but nexnoc cannot sudo it — Admin → Services will show unknown"
+    fi
   else
     warn "Admin → Services helper missing — re-run setup.sh"
   fi

@@ -26,10 +26,10 @@
     degraded: "#f5c14a",
     down: "#ff5d6c",
     unreachable: "#ff5d6c",
-    unknown: "#6b7385",
+    unknown: "#c3ccdc",
   };
   const CDN_MAP = {
-    tile_url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    tile_url: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
     tile_subdomains: "abcd",
     tile_attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> &copy; <a href=\"https://carto.com/attributions\">CARTO</a>",
     min_zoom: 3,
@@ -1136,20 +1136,7 @@
         }
       },
     });
-    const src = panel.querySelector('[name="source_device_id"]');
-    const dst = panel.querySelector('[name="dest_device_id"]');
-    const srcPort = panel.querySelector('[name="source_port_id"]');
-    const dstPort = panel.querySelector('[name="dest_port_id"]');
-    const syncPorts = (selectEl, portEl, role) => {
-      if (!selectEl || !portEl) return;
-      const current = portEl.value;
-      const opts = portOptions(selectEl.value, role);
-      portEl.innerHTML = opts.map((o) =>
-        `<option value="${escapeAttr(o.value)}"${String(o.value) === String(current) ? " selected" : ""}>${escapeHtml(o.label)}</option>`
-      ).join("");
-    };
-    if (src) src.addEventListener("change", () => syncPorts(src, srcPort, "source"));
-    if (dst) dst.addEventListener("change", () => syncPorts(dst, dstPort, "dest"));
+    bindFlowCascade(panel);
   }
 
   function showNewFlow() {
@@ -1211,11 +1198,81 @@
   function cityOptions() {
     return [blankOption("(none)"), ...(state.cities || []).map((c) => ({ value: cityDbId(c), label: c.name }))];
   }
-  function siteOptions() {
-    return [blankOption("(none)"), ...(state.sites || []).map((s) => ({ value: s.id, label: s.name }))];
+
+  function sitesForCity(cityId) {
+    if (!cityId) return state.sites || [];
+    const city = (state.cities || []).find((c) => String(cityDbId(c)) === String(cityId));
+    const ids = new Set(city && city.site_ids ? city.site_ids : []);
+    return (state.sites || []).filter((s) =>
+      ids.has(s.id) || String(s.city_id) === String(cityId)
+    );
   }
-  function deviceOptions() {
-    return [blankOption("(none)"), ...(state.devices || []).map((d) => ({ value: d.id, label: d.name }))];
+
+  function devicesForSite(siteId, cityId) {
+    if (siteId) {
+      return (state.devices || []).filter((d) => String(d.site_id) === String(siteId));
+    }
+    if (cityId) {
+      const allowed = new Set(sitesForCity(cityId).map((s) => s.id));
+      return (state.devices || []).filter((d) => allowed.has(d.site_id));
+    }
+    return state.devices || [];
+  }
+
+  function siteOptions(cityId) {
+    return [blankOption("(none)"), ...sitesForCity(cityId).map((s) => ({ value: s.id, label: s.name }))];
+  }
+  function deviceOptions(siteId, cityId) {
+    return [blankOption("(none)"), ...devicesForSite(siteId, cityId).map((d) => ({ value: d.id, label: d.name }))];
+  }
+
+  function replaceSelectOptions(selectEl, options, current) {
+    if (!selectEl) return "";
+    const keep = options.some((o) => String(o.value) === String(current ?? ""));
+    const chosen = keep ? String(current) : "";
+    selectEl.innerHTML = options.map((o) =>
+      `<option value="${escapeAttr(o.value)}"${String(o.value) === chosen ? " selected" : ""}>${escapeHtml(o.label)}</option>`
+    ).join("");
+    return chosen;
+  }
+
+  function bindFlowCascade(panel, opts) {
+    const leave = Boolean(opts && opts.leaveUnchanged);
+    const city = panel.querySelector('[name="dest_city_id"]');
+    const site = panel.querySelector('[name="dest_site_id"]');
+    const device = panel.querySelector('[name="dest_device_id"]');
+    const dstPort = panel.querySelector('[name="dest_port_id"]');
+    const src = panel.querySelector('[name="source_device_id"]');
+    const srcPort = panel.querySelector('[name="source_port_id"]');
+
+    const destSiteOptions = (cityId) => {
+      const rows = siteOptions(cityId);
+      if (!leave) return rows;
+      return [blankOption("Leave unchanged"), ...rows.filter((o) => o.value !== "")];
+    };
+    const destDeviceOptions = (siteId, cityId) => {
+      const rows = deviceOptions(siteId, cityId);
+      if (!leave) return rows;
+      return [blankOption("Leave unchanged"), ...rows.filter((o) => o.value !== "")];
+    };
+
+    const syncPorts = (selectEl, portEl, role) => {
+      if (!selectEl || !portEl) return;
+      replaceSelectOptions(portEl, portOptions(selectEl.value, role), portEl.value);
+    };
+
+    const syncDest = () => {
+      const cityId = city ? city.value : "";
+      if (site) replaceSelectOptions(site, destSiteOptions(cityId), site.value);
+      const siteId = site ? site.value : "";
+      if (device) replaceSelectOptions(device, destDeviceOptions(siteId, cityId), device.value);
+      syncPorts(device, dstPort, "dest");
+    };
+
+    if (city) city.addEventListener("change", syncDest);
+    if (site) site.addEventListener("change", syncDest);
+    if (device) device.addEventListener("change", () => syncPorts(device, dstPort, "dest"));
+    if (src) src.addEventListener("change", () => syncPorts(src, srcPort, "source"));
   }
   function driverOptions(vendor) {
     const all = state.drivers || [];
@@ -1441,6 +1498,7 @@
         panel.innerHTML = `<p class="muted">Click a flow to edit, or New flow. Check rows for bulk edit.</p>`;
         renderLinks();
       });
+      bindFlowCascade(panel, { leaveUnchanged: true });
       renderLinks();
     } else {
       bulkInvOpen = true;
@@ -1589,8 +1647,8 @@
           ${selectField("Source device", "source_device_id", deviceOptions().slice(1), f?.source_device_id, "wide")}
           ${selectField("Source port", "source_port_id", portOptions(f?.source_device_id, "source"), f?.source_port_id, "wide")}
           ${selectField("Dest city", "dest_city_id", cityOptions(), f?.dest_city_id)}
-          ${selectField("Dest site", "dest_site_id", siteOptions(), f?.dest_site_id)}
-          ${selectField("Dest device", "dest_device_id", deviceOptions(), f?.dest_device_id, "wide")}
+          ${selectField("Dest site", "dest_site_id", siteOptions(f?.dest_city_id), f?.dest_site_id)}
+          ${selectField("Dest device", "dest_device_id", deviceOptions(f?.dest_site_id, f?.dest_city_id), f?.dest_device_id, "wide")}
           ${selectField("Dest port", "dest_port_id", portOptions(f?.dest_device_id, "dest"), f?.dest_port_id, "wide")}
           ${field("Dest label", "dest_label", f?.dest_label || "")}
           ${field("Direction", "direction", f?.direction || "contribution")}
@@ -2348,20 +2406,7 @@
         renderLinks();
       },
     });
-    const src = panel.querySelector('[name="source_device_id"]');
-    const dst = panel.querySelector('[name="dest_device_id"]');
-    const srcPort = panel.querySelector('[name="source_port_id"]');
-    const dstPort = panel.querySelector('[name="dest_port_id"]');
-    const syncPorts = (selectEl, portEl, role) => {
-      if (!selectEl || !portEl) return;
-      const current = portEl.value;
-      const opts = portOptions(selectEl.value, role);
-      portEl.innerHTML = opts.map((o) =>
-        `<option value="${escapeAttr(o.value)}"${String(o.value) === String(current) ? " selected" : ""}>${escapeHtml(o.label)}</option>`
-      ).join("");
-    };
-    if (src) src.addEventListener("change", () => syncPorts(src, srcPort, "source"));
-    if (dst) dst.addEventListener("change", () => syncPorts(dst, dstPort, "dest"));
+    bindFlowCascade(panel);
   }
 
   function escapeHtml(value) {
@@ -2960,6 +3005,7 @@
   }
 
   let selectedService = "nexnoc-web";
+  const RESTART_DROPS_CONNECTION = { "nexnoc-web": true, "apache2": true };
 
   function svcStateClass(active) {
     if (active === "active") return "is-active";
@@ -3008,6 +3054,7 @@
           <td>
             <span class="admin-svc-state ${svcStateClass(svc.active)}">${escapeHtml(svc.active || "unknown")}</span>
             ${svc.sub ? ` <span class="hint">${escapeHtml(svc.sub)}</span>` : ""}
+            ${svc.error ? `<div class="hint">${escapeHtml(svc.error)}</div>` : ""}
           </td>
           <td>${escapeHtml(svc.since || "—")}</td>
           <td>
@@ -3030,10 +3077,18 @@
           btn.disabled = true;
           try {
             await apiSend("POST", `/api/admin/services/${encodeURIComponent(unit)}/restart`, {});
-          } catch (_exc) {
-            /* nexnoc-web restart drops the connection */
+          } catch (exc) {
+            if (!RESTART_DROPS_CONNECTION[unit]) {
+              await loadServices();
+              if (err) {
+                err.hidden = false;
+                err.textContent = exc.message || `Failed to restart ${unit}`;
+              }
+              return;
+            }
+            /* nexnoc-web / apache2 restart can drop the connection */
           }
-          await new Promise((resolve) => setTimeout(resolve, unit === "nexnoc-web" ? 2000 : 400));
+          await new Promise((resolve) => setTimeout(resolve, RESTART_DROPS_CONNECTION[unit] ? 2000 : 400));
           await loadServices();
           await loadServiceLogs(unit);
         });
@@ -3124,8 +3179,9 @@
     $("admin-group-name").value = "";
     await loadAdmin();
   });
-  $("admin-svc-refresh")?.addEventListener("click", () => {
-    loadServices();
+  $("admin-svc-refresh")?.addEventListener("click", async () => {
+    await loadServices();
+    if (selectedService) await loadServiceLogs(selectedService);
   });
   $("admin-session")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();

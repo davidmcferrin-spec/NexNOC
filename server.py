@@ -57,7 +57,7 @@ WEB_ROOT = Path(__file__).parent / "web"
 # Dev default: Carto Dark Matter over the public CDN. Production sets
 # map.local_tile_dir (or --tile-dir) and the dashboard serves XYZ tiles
 # from disk at /tiles/{z}/{x}/{y}.png instead.
-CDN_TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+CDN_TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
 CDN_TILE_SUBDOMAINS = "abcd"
 CDN_TILE_ATTRIBUTION = (
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '

@@ -14,7 +14,7 @@ html[data-theme="dark"] {
   --accent: #8bb6ff;
   --row-sel: #2a364c;
   --row-checked: #243044;
-  --city-pill: #1c2434;
+  --city-pill: #2a3548;
   --btn-primary-bg: #1e3358;
   --btn-danger-border: #8a3d48;
   --attr-bg: rgba(11, 15, 22, 0.82);
@@ -256,8 +256,14 @@ html[data-theme="light"] .leaflet-container.local-tiles .leaflet-tile-pane {
   overflow: hidden;
   white-space: nowrap;
   pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
 }
 .city-marker.sel .city-pill { border-color: var(--accent); }
+html[data-theme="dark"] .city-pill {
+  background: #dce3f0;
+  border-color: #9aa8c0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
+}
 html[data-theme="light"] .city-pill {
   box-shadow: 0 1px 4px rgba(21, 32, 51, 0.18);
 }
@@ -272,10 +278,16 @@ html[data-theme="light"] .city-pill {
   font-weight: 650;
   line-height: 1.2;
 }
+html[data-theme="dark"] .site-label {
+  color: #152033;
+}
 .site-sub {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.2;
+}
+html[data-theme="dark"] .site-sub {
+  color: #3d4a61;
 }
 .site-dot { width: 16px; height: 16px; }
 .site-dot .pin-dot { width: 9px; height: 9px; left: 3px; top: 3px; border-width: 2px; }

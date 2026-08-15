@@ -24,8 +24,15 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("a2dissite 000-default", text)
         self.assertIn("install_svc_helper", text)
         self.assertIn("sudoers.d/nexnoc-svc", text)
+        self.assertIn("nexnoc-svc *", text)
+        self.assertIn("sudo -u nexnoc sudo -n", text)
         self.assertIn("sqlite3", text)
         self.assertNotIn("pip install", text)
+
+    def test_svc_helper_uses_no_pager(self):
+        helper = _read("scripts/nexnoc-svc")
+        self.assertIn("--no-pager", helper)
+        self.assertNotRegex(helper, r"--no-page(?!r)")
 
     def test_systemd_units_bind_loopback_and_use_env_file(self):
         poller = _read("systemd/nexnoc-poller.service")

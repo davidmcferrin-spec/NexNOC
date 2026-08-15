@@ -29,7 +29,7 @@ case "${cmd}" in
   status)
     systemctl show "${unit}" \
       --property=ActiveState,SubState,Description,MainPID,NRestarts,ActiveEnterTimestamp \
-      --no-page
+      --no-pager
     ;;
   logs)
     if [[ ! "${lines}" =~ ^[0-9]+$ ]]; then

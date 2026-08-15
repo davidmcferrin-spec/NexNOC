@@ -17,6 +17,9 @@ SERVICE_UNITS = (
     ("apache2", "Apache reverse proxy"),
 )
 ALLOWED_UNITS = {unit for unit, _label in SERVICE_UNITS}
+# Restarting these kills the request path (origin or the reverse proxy),
+# so the helper is fired and forgotten and the API returns 202 immediately.
+DETACHED_RESTART_UNITS = frozenset({"nexnoc-web", "apache2"})
 DEFAULT_HELPER = "/opt/nexnoc/scripts/nexnoc-svc"
 
 
@@ -88,7 +91,7 @@ def service_logs(unit: str, lines: int = 200) -> str:
 
 def restart_service(unit: str) -> dict:
     unit = check_unit(unit)
-    if unit == "nexnoc-web":
+    if unit in DETACHED_RESTART_UNITS:
         try:
             subprocess.Popen(
                 ["sudo", "-n", helper_path(), "restart", unit],

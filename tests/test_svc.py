@@ -10,6 +10,7 @@ from auth import authenticate, user_payload  # noqa: E402
 from auth_api import AuthError, handle_auth  # noqa: E402
 from db import Database  # noqa: E402
 from svc_util import (  # noqa: E402
+    DETACHED_RESTART_UNITS,
     SvcError,
     check_unit,
     list_services,
@@ -60,6 +61,14 @@ class TestSvcHelper(unittest.TestCase):
         self.assertTrue(result["restarting"])
         popen.assert_called_once()
         self.assertEqual(popen.call_args[0][0][3:], ["restart", "nexnoc-web"])
+
+    def test_restart_apache_does_not_wait(self):
+        self.assertIn("apache2", DETACHED_RESTART_UNITS)
+        with patch("svc_util.subprocess.Popen") as popen:
+            result = restart_service("apache2")
+        self.assertTrue(result["restarting"])
+        popen.assert_called_once()
+        self.assertEqual(popen.call_args[0][0][3:], ["restart", "apache2"])
 
     def test_restart_other_waits(self):
         with patch("svc_util._run", return_value="") as run:
@@ -119,6 +128,13 @@ class TestSvcAdminApi(unittest.TestCase):
         with patch("auth_api.restart_service", return_value={"ok": True, "restarting": True}):
             status, payload, _cookie = handle_auth(
                 self.db, "POST", "/api/admin/services/nexnoc-web/restart",
+                {}, self.user, "t", False, "1.1.1.1",
+            )
+        self.assertEqual(status, 202)
+
+        with patch("auth_api.restart_service", return_value={"ok": True, "restarting": True}):
+            status, payload, _cookie = handle_auth(
+                self.db, "POST", "/api/admin/services/apache2/restart",
                 {}, self.user, "t", False, "1.1.1.1",
             )
         self.assertEqual(status, 202)

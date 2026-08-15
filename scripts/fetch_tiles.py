@@ -6,7 +6,7 @@ Run this on a machine that can reach the tile URL, then copy the output
 directory to the NOC host and set map.local_tile_dir in config.json.
 
     python3 scripts/fetch_tiles.py --out tiles \\
-        --url "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png" \\
+        --url "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png" \\
         --bbox -125,24,-66,50 --min-zoom 3 --max-zoom 8
 
 Then on the server:
@@ -31,7 +31,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-DEFAULT_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+DEFAULT_URL = "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png"
 DEFAULT_BBOX = (-125.0, 24.0, -66.0, 50.0)  # CONUS
 SUBDOMAINS = "abcd"
 
