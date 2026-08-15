@@ -1,12 +1,26 @@
-:root {
-  --bg: #07090d;
-  --panel: #10141c;
-  --panel-2: #161c27;
-  --border: #232b3a;
-  --text: #e8edf5;
-  --muted: #8b95a8;
-  --bad: #ff5d6c;
-  --accent: #6aa4ff;
+:root,
+html[data-theme="dark"] {
+  --bg: #0b0f16;
+  --panel: #171d2a;
+  --panel-2: #21293a;
+  --border: #44516a;
+  --text: #f5f7fb;
+  --muted: #c3ccdc;
+  --bad: #ff7583;
+  --accent: #8bb6ff;
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --bg: #eef1f6;
+  --panel: #ffffff;
+  --panel-2: #e4e9f2;
+  --border: #9aa6bb;
+  --text: #152033;
+  --muted: #3d4a61;
+  --bad: #b42332;
+  --accent: #1558c0;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -70,3 +84,22 @@ body {
 }
 .auth-kiosk { text-align: center; margin: 16px 0 0; }
 .auth-kiosk a { color: var(--accent); }
+
+.theme-toggle {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+.theme-icon-moon { display: none; }
+html[data-theme="light"] .theme-icon-sun { display: none; }
+html[data-theme="light"] .theme-icon-moon { display: block; }

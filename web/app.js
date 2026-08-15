@@ -14,6 +14,7 @@
 
   const REFRESH_MS = 5000;
   const REFRESH_FAIL_THRESHOLD = 3;
+  const THEME_KEY = "nexnoc.theme";
   const TZ_OVERLAY_KEY = "nexnoc.tzOverlay";
   const MAP_DRAWER_KEY = "nexnoc.mapDrawer";
   const MAP_DRAWER_MIN = 220;
@@ -268,6 +269,54 @@
     });
   }
 
+  function currentTheme() {
+    return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  }
+
+  function themedTileUrl(url) {
+    if (currentTheme() === "light") {
+      return url
+        .replace("/dark_all/", "/light_all/")
+        .replace("/dark_nolabels/", "/light_nolabels/");
+    }
+    return url
+      .replace("/light_all/", "/dark_all/")
+      .replace("/light_nolabels/", "/dark_nolabels/");
+  }
+
+  function syncThemeToggle() {
+    const btn = $("theme-toggle");
+    if (!btn) return;
+    const light = currentTheme() === "light";
+    const next = light ? "dark" : "light";
+    btn.title = `Switch to ${next} mode`;
+    btn.setAttribute("aria-label", `Switch to ${next} mode`);
+    btn.setAttribute("aria-pressed", light ? "true" : "false");
+  }
+
+  function applyTheme(theme) {
+    const next = theme === "light" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem(THEME_KEY, next); } catch (_err) { /* private mode */ }
+    syncThemeToggle();
+    if (leafletMap) {
+      lastTileUrl = "";
+      ensureMap();
+    }
+  }
+
+  function initTheme() {
+    let saved = "dark";
+    try {
+      const raw = localStorage.getItem(THEME_KEY);
+      if (raw === "light" || raw === "dark") saved = raw;
+    } catch (_err) { /* private mode */ }
+    applyTheme(saved);
+    $("theme-toggle")?.addEventListener("click", () => {
+      applyTheme(currentTheme() === "light" ? "dark" : "light");
+    });
+  }
+
   function mapSettings() {
     const cfg = (state && state.map) || {};
     return {
@@ -332,15 +381,18 @@
       leafletMap.setMinZoom(cfg.min_zoom);
       leafletMap.setMaxZoom(cfg.max_zoom);
     }
-    if (!tileLayer || lastTileUrl !== cfg.tile_url) {
+    const tileUrl = themedTileUrl(cfg.tile_url);
+    const mapEl = $("map");
+    if (mapEl) mapEl.classList.toggle("local-tiles", cfg.tile_url.startsWith("/tiles/"));
+    if (!tileLayer || lastTileUrl !== tileUrl) {
       if (tileLayer) leafletMap.removeLayer(tileLayer);
-      tileLayer = L.tileLayer(cfg.tile_url, {
+      tileLayer = L.tileLayer(tileUrl, {
         attribution: cfg.tile_attribution,
         subdomains: cfg.tile_subdomains || "abcd",
         minZoom: cfg.min_zoom,
         maxZoom: cfg.max_zoom,
       }).addTo(leafletMap);
-      lastTileUrl = cfg.tile_url;
+      lastTileUrl = tileUrl;
     }
     return true;
   }
@@ -2904,6 +2956,95 @@
     } catch (_err) {
       /* view_audit may be denied by override */
     }
+    await loadServices();
+  }
+
+  let selectedService = "nexnoc-web";
+
+  function svcStateClass(active) {
+    if (active === "active") return "is-active";
+    if (active === "failed") return "is-failed";
+    if (active === "inactive") return "is-inactive";
+    return "";
+  }
+
+  async function loadServiceLogs(unit) {
+    const pane = $("admin-svc-log");
+    const title = $("admin-svc-log-title");
+    if (title) title.textContent = `Logs — ${unit}`;
+    if (!pane) return;
+    pane.textContent = "Loading…";
+    try {
+      const data = await apiSend("GET", `/api/admin/services/${encodeURIComponent(unit)}/logs?lines=200`);
+      pane.textContent = data.log || "(no log lines)";
+      pane.scrollTop = pane.scrollHeight;
+    } catch (exc) {
+      pane.textContent = exc.message || "Could not load logs";
+    }
+  }
+
+  async function loadServices() {
+    const body = $("admin-services");
+    const err = $("admin-svc-error");
+    if (!body) return;
+    try {
+      const data = await apiSend("GET", "/api/admin/services");
+      if (err) {
+        err.hidden = !!data.available;
+        err.textContent = data.available
+          ? ""
+          : (data.error || "Service helper unavailable — re-run setup.sh");
+      }
+      const rows = data.services || [];
+      if (!rows.some((s) => s.id === selectedService) && rows[0]) {
+        selectedService = rows[0].id;
+      }
+      body.innerHTML = rows.map((svc) => `
+        <tr class="${svc.id === selectedService ? "admin-svc-selected" : ""}" data-svc="${escapeAttr(svc.id)}">
+          <td>
+            <strong>${escapeHtml(svc.id)}</strong>
+            <div class="hint">${escapeHtml(svc.label || "")}</div>
+          </td>
+          <td>
+            <span class="admin-svc-state ${svcStateClass(svc.active)}">${escapeHtml(svc.active || "unknown")}</span>
+            ${svc.sub ? ` <span class="hint">${escapeHtml(svc.sub)}</span>` : ""}
+          </td>
+          <td>${escapeHtml(svc.since || "—")}</td>
+          <td>
+            <button type="button" class="btn" data-restart-svc="${escapeAttr(svc.id)}">Restart</button>
+          </td>
+        </tr>`).join("");
+      body.querySelectorAll("tr[data-svc]").forEach((row) => {
+        row.addEventListener("click", (ev) => {
+          if (ev.target.closest("[data-restart-svc]")) return;
+          selectedService = row.dataset.svc;
+          loadServices();
+          loadServiceLogs(selectedService);
+        });
+      });
+      body.querySelectorAll("[data-restart-svc]").forEach((btn) => {
+        btn.addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          const unit = btn.dataset.restartSvc;
+          if (!window.confirm(`Restart ${unit}?`)) return;
+          btn.disabled = true;
+          try {
+            await apiSend("POST", `/api/admin/services/${encodeURIComponent(unit)}/restart`, {});
+          } catch (_exc) {
+            /* nexnoc-web restart drops the connection */
+          }
+          await new Promise((resolve) => setTimeout(resolve, unit === "nexnoc-web" ? 2000 : 400));
+          await loadServices();
+          await loadServiceLogs(unit);
+        });
+      });
+      await loadServiceLogs(selectedService);
+    } catch (exc) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = exc.message || "Could not load services";
+      }
+    }
   }
 
   function openUserForm(id) {
@@ -2925,6 +3066,8 @@
       </label>`).join("");
     $("user-modal").hidden = false;
   }
+
+  initTheme();
 
   $("logout-btn")?.addEventListener("click", async () => {
     await apiSend("POST", "/api/auth/logout", {});
@@ -2980,6 +3123,9 @@
     await apiSend("POST", "/api/admin", { action: "save_ldap", ...adminData.ldap, allowed_groups: groups });
     $("admin-group-name").value = "";
     await loadAdmin();
+  });
+  $("admin-svc-refresh")?.addEventListener("click", () => {
+    loadServices();
   });
   $("admin-session")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();

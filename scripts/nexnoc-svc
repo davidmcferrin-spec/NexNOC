@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Allowlisted systemd helper for Admin → Services.
+# Invoked as: sudo -n /opt/nexnoc/scripts/nexnoc-svc status|logs|restart UNIT [lines]
+# Unit names are hardcoded here — do not pass this script a free-form unit.
+set -euo pipefail
+
+UNITS="nexnoc-web nexnoc-poller nexnoc-trapd apache2"
+cmd="${1:-}"
+unit="${2:-}"
+lines="${3:-200}"
+
+usage() {
+  echo "usage: nexnoc-svc status|logs|restart UNIT [lines]" >&2
+  exit 2
+}
+
+[[ -n "${cmd}" && -n "${unit}" ]] || usage
+
+ok=0
+for allowed in ${UNITS}; do
+  if [[ "${unit}" == "${allowed}" ]]; then
+    ok=1
+    break
+  fi
+done
+[[ "${ok}" == 1 ]] || { echo "unknown unit ${unit}" >&2; exit 2; }
+
+case "${cmd}" in
+  status)
+    systemctl show "${unit}" \
+      --property=ActiveState,SubState,Description,MainPID,NRestarts,ActiveEnterTimestamp \
+      --no-page
+    ;;
+  logs)
+    if [[ ! "${lines}" =~ ^[0-9]+$ ]]; then
+      echo "lines must be a number" >&2
+      exit 2
+    fi
+    if (( lines < 1 )); then lines=1; fi
+    if (( lines > 1000 )); then lines=1000; fi
+    journalctl -u "${unit}" -n "${lines}" --no-pager -o short-iso
+    ;;
+  restart)
+    systemctl restart "${unit}"
+    ;;
+  *)
+    usage
+    ;;
+esac

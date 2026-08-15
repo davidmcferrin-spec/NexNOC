@@ -122,6 +122,11 @@ were pulled off the active roadmap — see "Future ideas" below.
   `admin`/`password` and `user`/`password`. `/kiosk` and `/api/state` stay
   anonymous; writes and `GET /dashboard` require a session. `GET /` is
   the login page (`index.html`); the board is `dashboard.html`. LDAP via `ldapsearch`.
+  Admin → Services and logs (`GET/POST /api/admin/services`) shows
+  systemd status/journal and can restart `nexnoc-web` / `nexnoc-poller` /
+  `nexnoc-trapd` / `apache2` via `scripts/nexnoc-svc` + sudoers
+  (`setup.sh` installs `/etc/sudoers.d/nexnoc-svc`). Units are
+  allowlisted in the helper — do not take a free-form unit name.
 - ✅ Kiosk board (`/kiosk`; same polling layer as Phase 2).
 - ✅ Out-of-phase-order infrastructure (not on the Phase 1–2 roadmap, but
   live): local+LDAP auth/RBAC (see Phase 2 entry above), SNMP GET +

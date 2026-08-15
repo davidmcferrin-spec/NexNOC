@@ -21,6 +21,9 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("nexnoc-web", text)
         self.assertIn("nexnoc-trapd", text)
         self.assertIn("apache2", text)
+        self.assertIn("a2dissite 000-default", text)
+        self.assertIn("install_svc_helper", text)
+        self.assertIn("sudoers.d/nexnoc-svc", text)
         self.assertIn("sqlite3", text)
         self.assertNotIn("pip install", text)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 from audit import audit_log, audit_read
+from svc_util import SvcError, list_services, restart_service, service_logs
 from auth import (
     DEFAULT_LDAP,
     DEFAULT_ROLES,
@@ -108,6 +109,8 @@ def _handle_admin(db, method, parts, body, user, client_ip):
             limit=int(body.get("limit") or 200),
             offset=int(body.get("offset") or 0),
         )}, None
+    if extra == "services":
+        return _handle_services(method, parts, body, user, client_ip)
     if method == "GET":
         settings = db.get_auth_settings()
         users = [public_user_row(dict(u)) for u in db.list_users()]
@@ -148,6 +151,33 @@ def _handle_admin(db, method, parts, body, user, client_ip):
     if action == "delete_user":
         return _delete_user(db, body, user, client_ip)
     raise AuthError("unknown action", 400)
+
+
+def _handle_services(method, parts, body, user, client_ip):
+    unit = parts[3] if len(parts) > 3 else ""
+    action = parts[4] if len(parts) > 4 else ""
+    if method == "GET" and not unit:
+        return 200, {"ok": True, **list_services()}, None
+    if method == "GET" and action == "logs":
+        try:
+            lines = int(body.get("lines") or 200)
+        except (TypeError, ValueError):
+            lines = 200
+        try:
+            text = service_logs(unit, lines)
+        except SvcError as exc:
+            raise AuthError(str(exc), 400) from exc
+        return 200, {"ok": True, "unit": unit, "log": text}, None
+    if method == "POST" and action == "restart":
+        try:
+            result = restart_service(unit)
+        except SvcError as exc:
+            audit_log("restart_service", user, client_ip, {"target": unit}, ok=False)
+            raise AuthError(str(exc), 400) from exc
+        audit_log("restart_service", user, client_ip, {"target": unit}, ok=True)
+        status = 202 if result.get("restarting") else 200
+        return status, {"ok": True, "unit": unit, **result}, None
+    raise LookupError("not found")
 
 
 def _clean_groups(raw: list) -> list:

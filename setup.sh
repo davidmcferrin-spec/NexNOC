@@ -158,7 +158,26 @@ sync_code() {
   if [[ -f "${PREFIX}/scripts/nexnoc-backup-db" ]]; then
     chmod 755 "${PREFIX}/scripts/nexnoc-backup-db"
   fi
+  if [[ -f "${PREFIX}/scripts/nexnoc-svc" ]]; then
+    chmod 755 "${PREFIX}/scripts/nexnoc-svc"
+  fi
   ok "rsync ${ROOT} → ${PREFIX}"
+}
+
+install_svc_helper() {
+  step "Admin service helper"
+  [[ -f "${PREFIX}/scripts/nexnoc-svc" ]] || fail "missing ${PREFIX}/scripts/nexnoc-svc"
+  chmod 755 "${PREFIX}/scripts/nexnoc-svc"
+  cat > /etc/sudoers.d/nexnoc-svc <<EOF
+# NexNOC Admin → Services. Units are allowlisted inside the helper.
+nexnoc ALL=(root) NOPASSWD: ${PREFIX}/scripts/nexnoc-svc
+EOF
+  chmod 440 /etc/sudoers.d/nexnoc-svc
+  if command -v visudo >/dev/null 2>&1; then
+    visudo -cf /etc/sudoers.d/nexnoc-svc >/dev/null \
+      || fail "sudoers.d/nexnoc-svc failed visudo -cf"
+  fi
+  ok "sudoers.d/nexnoc-svc → ${PREFIX}/scripts/nexnoc-svc"
 }
 
 install_config() {
@@ -231,6 +250,10 @@ install_apache() {
     > /etc/apache2/sites-available/nexnoc.conf
   chmod 644 /etc/apache2/sites-available/nexnoc.conf
   a2ensite nexnoc >/dev/null
+  if [[ -e /etc/apache2/sites-enabled/000-default.conf ]]; then
+    a2dissite 000-default >/dev/null
+    ok "disabled Ubuntu default site (000-default)"
+  fi
   ok "site nexnoc (ServerName ${name} → 127.0.0.1:${WEB_PORT})"
 
   if apache2ctl configtest >/dev/null 2>&1; then
@@ -347,6 +370,16 @@ cmd_check() {
     else
       warn "mod_proxy_http not loaded — a2enmod proxy proxy_http"
     fi
+    if [[ -e /etc/apache2/sites-enabled/000-default.conf ]]; then
+      warn "000-default still enabled — Apache serves the Ubuntu index for unmatched Host headers"
+    else
+      ok "000-default disabled"
+    fi
+  fi
+  if [[ -x "${PREFIX}/scripts/nexnoc-svc" && -f /etc/sudoers.d/nexnoc-svc ]]; then
+    ok "Admin service helper + sudoers"
+  else
+    warn "Admin → Services helper missing — re-run setup.sh"
   fi
 
   if curl -fsS --max-time 3 "http://127.0.0.1:${WEB_PORT}/api/state" >/dev/null 2>&1; then
@@ -447,6 +480,7 @@ cmd_install() {
   sync_code
   install_config
   install_units
+  install_svc_helper
   install_apache
   bootstrap_db
   start_services
@@ -463,6 +497,7 @@ cmd_update() {
   sync_code
   install_config
   install_units
+  install_svc_helper
   if [[ -d /etc/apache2/sites-available ]]; then
     install_apache
   fi
