@@ -54,16 +54,16 @@ logger = logging.getLogger("nexnoc.server")
 
 WEB_ROOT = Path(__file__).parent / "web"
 
-# Dev default: Carto Voyager (no labels) over the public CDN — readable
-# land/water under the dark board. Production sets map.local_tile_dir
+# Dev default: Esri Light Gray Canvas over the public CDN. The board can
+# switch other CDN styles in the picker. Production sets map.local_tile_dir
 # (or --tile-dir) and the dashboard serves XYZ tiles from disk at
 # /tiles/{z}/{x}/{y}.png instead.
-CDN_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
-CDN_TILE_SUBDOMAINS = "abcd"
-CDN_TILE_ATTRIBUTION = (
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
-    '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+CDN_TILE_URL = (
+    "https://server.arcgisonline.com/ArcGIS/rest/services/"
+    "Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
 )
+CDN_TILE_SUBDOMAINS = ""
+CDN_TILE_ATTRIBUTION = "Tiles &copy; Esri"
 _TILE_PATH = re.compile(r"^/tiles/(\d+)/(\d+)/(\d+)\.(png|jpg|jpeg|webp)$")
 
 _SIGNAL_FROM_DEVICE = {

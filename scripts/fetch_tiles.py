@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Build a local XYZ tile pack for the NexNOC map (production / air-gap).
 
-Dev uses Carto Voyager (no labels) from the public CDN. Production should not.
+Dev uses Esri Light Gray Canvas from the public CDN. Production should not.
 Run this on a machine that can reach the tile URL, then copy the output
 directory to the NOC host and set map.local_tile_dir in config.json.
 
     python3 scripts/fetch_tiles.py --out tiles \\
-        --url "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png" \\
+        --url "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}" \\
         --bbox -125,24,-66,50 --min-zoom 3 --max-zoom 8
 
 Then on the server:
@@ -31,7 +31,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-DEFAULT_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png"
+DEFAULT_URL = (
+    "https://server.arcgisonline.com/ArcGIS/rest/services/"
+    "Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+)
 DEFAULT_BBOX = (-125.0, 24.0, -66.0, 50.0)  # CONUS
 SUBDOMAINS = "abcd"
 

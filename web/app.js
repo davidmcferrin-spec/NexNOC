@@ -15,6 +15,7 @@
   const REFRESH_MS = 5000;
   const REFRESH_FAIL_THRESHOLD = 3;
   const THEME_KEY = "nexnoc.theme";
+  const BASEMAP_KEY = "nexnoc.basemap";
   const TZ_OVERLAY_KEY = "nexnoc.tzOverlay";
   const MAP_DRAWER_KEY = "nexnoc.mapDrawer";
   const MAP_DRAWER_MIN = 220;
@@ -28,13 +29,77 @@
     unreachable: "#ff5d6c",
     unknown: "#c3ccdc",
   };
-  const CDN_MAP = {
-    tile_url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
-    tile_subdomains: "abcd",
-    tile_attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> &copy; <a href=\"https://carto.com/attributions\">CARTO</a>",
-    min_zoom: 3,
-    max_zoom: 18,
+  const OSM_ATTR = "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>";
+  const CARTO_ATTR = `${OSM_ATTR} &copy; <a href=\"https://carto.com/attributions\">CARTO</a>`;
+  const ESRI_ATTR = "Tiles &copy; Esri";
+  const BASEMAPS = {
+    esri_gray: {
+      label: "Light gray (Esri)",
+      tile_url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+      tile_subdomains: "",
+      tile_attribution: ESRI_ATTR,
+      max_zoom: 16,
+      bg: "#e6e6e6",
+    },
+    esri_dark: {
+      label: "Dark gray (Esri)",
+      tile_url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+      tile_subdomains: "",
+      tile_attribution: ESRI_ATTR,
+      max_zoom: 16,
+      bg: "#3c3c3c",
+    },
+    positron: {
+      label: "Light gray (Carto)",
+      tile_url: "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+      tile_subdomains: "abcd",
+      tile_attribution: CARTO_ATTR,
+      max_zoom: 18,
+      bg: "#d4dadd",
+    },
+    esri_street: {
+      label: "Streets (Esri)",
+      tile_url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      tile_subdomains: "",
+      tile_attribution: ESRI_ATTR,
+      max_zoom: 18,
+      bg: "#c8d4c0",
+    },
+    esri_imagery: {
+      label: "Satellite (Esri)",
+      tile_url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      tile_subdomains: "",
+      tile_attribution: ESRI_ATTR,
+      max_zoom: 18,
+      bg: "#0b1a2b",
+    },
+    osm: {
+      label: "OpenStreetMap",
+      tile_url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      tile_subdomains: "abc",
+      tile_attribution: OSM_ATTR,
+      max_zoom: 19,
+      bg: "#aad3df",
+    },
+    opentopo: {
+      label: "Terrain (OpenTopoMap)",
+      tile_url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+      tile_subdomains: "abc",
+      tile_attribution: `${OSM_ATTR}, SRTM | &copy; <a href=\"https://opentopomap.org\">OpenTopoMap</a> (CC-BY-SA)`,
+      max_zoom: 17,
+      bg: "#d4c9a8",
+    },
+    voyager: {
+      label: "Voyager (Carto)",
+      tile_url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
+      tile_subdomains: "abcd",
+      tile_attribution: CARTO_ATTR,
+      max_zoom: 18,
+      bg: "#c5d2dc",
+    },
   };
+  const DEFAULT_BASEMAP = "esri_gray";
+  const CDN_MAP = { min_zoom: 3, ...BASEMAPS[DEFAULT_BASEMAP] };
   const SITE_ZOOM = 10;
 
   let state = null;
@@ -273,17 +338,41 @@
     return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
   }
 
-  function themedTileUrl(url) {
-    if (!url || url.startsWith("/tiles/")) return url;
-    if (currentTheme() === "light") {
-      return url
-        .replace("/dark_all/", "/light_all/")
-        .replace("/dark_nolabels/", "/light_nolabels/");
+  function isLocalTiles() {
+    const cfg = (state && state.map) || {};
+    return cfg.source === "local" || String(cfg.tile_url || "").startsWith("/tiles/");
+  }
+
+  function selectedBasemapId() {
+    try {
+      const raw = localStorage.getItem(BASEMAP_KEY);
+      if (raw && BASEMAPS[raw]) return raw;
+    } catch (_err) { /* private mode */ }
+    return DEFAULT_BASEMAP;
+  }
+
+  function syncBasemapPicker() {
+    const wrap = $("basemap-picker");
+    const sel = $("basemap-select");
+    if (!wrap || !sel) return;
+    wrap.hidden = KIOSK || isLocalTiles();
+    if (!sel.options.length) {
+      sel.innerHTML = Object.entries(BASEMAPS).map(([id, basemap]) =>
+        `<option value="${escapeAttr(id)}">${escapeHtml(basemap.label)}</option>`
+      ).join("");
     }
-    // Dark chrome, but keep geography readable — do not use Dark Matter.
-    return url
-      .replace("/dark_all/", "/rastertiles/voyager/")
-      .replace("/dark_nolabels/", "/rastertiles/voyager_nolabels/");
+    sel.value = selectedBasemapId();
+  }
+
+  function initBasemapPicker() {
+    const sel = $("basemap-select");
+    if (!sel) return;
+    sel.addEventListener("change", () => {
+      try { localStorage.setItem(BASEMAP_KEY, sel.value); } catch (_err) { /* private mode */ }
+      lastTileUrl = "";
+      if (leafletMap) ensureMap();
+    });
+    syncBasemapPicker();
   }
 
   function syncThemeToggle() {
@@ -321,12 +410,25 @@
 
   function mapSettings() {
     const cfg = (state && state.map) || {};
+    const minZoom = cfg.min_zoom != null ? cfg.min_zoom : CDN_MAP.min_zoom;
+    if (isLocalTiles()) {
+      return {
+        tile_url: cfg.tile_url,
+        tile_subdomains: "",
+        tile_attribution: cfg.tile_attribution || CDN_MAP.tile_attribution,
+        min_zoom: minZoom,
+        max_zoom: cfg.max_zoom != null ? cfg.max_zoom : 8,
+        bg: "#e6e6e6",
+      };
+    }
+    const preset = BASEMAPS[selectedBasemapId()] || CDN_MAP;
     return {
-      tile_url: cfg.tile_url || CDN_MAP.tile_url,
-      tile_subdomains: cfg.tile_subdomains || CDN_MAP.tile_subdomains,
-      tile_attribution: cfg.tile_attribution || CDN_MAP.tile_attribution,
-      min_zoom: cfg.min_zoom != null ? cfg.min_zoom : CDN_MAP.min_zoom,
-      max_zoom: cfg.max_zoom != null ? cfg.max_zoom : CDN_MAP.max_zoom,
+      tile_url: preset.tile_url,
+      tile_subdomains: preset.tile_subdomains,
+      tile_attribution: preset.tile_attribution,
+      min_zoom: minZoom,
+      max_zoom: preset.max_zoom != null ? preset.max_zoom : 18,
+      bg: preset.bg || "#e6e6e6",
     };
   }
 
@@ -383,9 +485,13 @@
       leafletMap.setMinZoom(cfg.min_zoom);
       leafletMap.setMaxZoom(cfg.max_zoom);
     }
-    const tileUrl = themedTileUrl(cfg.tile_url);
+    const tileUrl = cfg.tile_url;
     const mapEl = $("map");
-    if (mapEl) mapEl.classList.toggle("local-tiles", cfg.tile_url.startsWith("/tiles/"));
+    if (mapEl) {
+      mapEl.classList.toggle("local-tiles", isLocalTiles());
+      if (cfg.bg) mapEl.style.background = cfg.bg;
+    }
+    syncBasemapPicker();
     if (!tileLayer || lastTileUrl !== tileUrl) {
       if (tileLayer) leafletMap.removeLayer(tileLayer);
       tileLayer = L.tileLayer(tileUrl, {
@@ -3127,6 +3233,7 @@
   }
 
   initTheme();
+  initBasemapPicker();
 
   $("logout-btn")?.addEventListener("click", async () => {
     await apiSend("POST", "/api/auth/logout", {});

@@ -37,7 +37,7 @@ were pulled off the active roadmap — see "Future ideas" below.
   (2) a filterable flat table of all source→destination links + status.
   The geo view is Leaflet (vendored, no npm) with real tiles — pan/zoom.
   One undirected trunk per city pair; click the trunk to list paths.
-  Dev uses Carto Voyager (no labels) CDN; production sets `map.local_tile_dir` and
+  Dev uses Esri Light Gray Canvas CDN (in-board picker for other styles); production sets `map.local_tile_dir` and
   Apache serves `/tiles/{z}/{x}/{y}.png` from that directory. Do not go
   back to a hand-drawn CONUS SVG silhouette. Sample inventory is CHI /
   NYC / DC / ATL / Indy — not Huntsville or LA.

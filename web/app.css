@@ -196,10 +196,37 @@ main { flex: 1; min-height: 0; display: flex; }
   width: 100%;
   height: 100%;
   min-height: 0;
-  background: #c5d2dc;
+  background: #e6e6e6;
 }
 .leaflet-container {
-  background: #c5d2dc;
+  background: #e6e6e6;
+  font: inherit;
+}
+.basemap-picker {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font-size: 12px;
+}
+.basemap-picker[hidden] { display: none; }
+.basemap-picker-label { font-weight: 650; letter-spacing: 0.02em; }
+.basemap-picker select {
+  max-width: 200px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
   font: inherit;
 }
 .leaflet-bar {
@@ -702,6 +729,7 @@ body.kiosk #view-io,
 body.kiosk #view-setup { display: none !important; }
 body.kiosk #view-map { display: flex !important; }
 body.kiosk .map-wrap { --map-drawer-open-width: 360px; }
+body.kiosk .basemap-picker { display: none !important; }
 body.kiosk .mark { font-size: 20px; }
 body.kiosk .sub { font-size: 18px; }
 body.kiosk .clock-time { font-size: 22px; }

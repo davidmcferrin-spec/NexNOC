@@ -648,8 +648,8 @@ def build_inventory(xlsx: Path | None = None, collect_secrets: dict | None = Non
     return {
         "poll_interval_seconds": 30,
         "map": {
-            "tile_url": "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
-            "tile_subdomains": "abcd",
+            "tile_url": "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+            "tile_subdomains": "",
             "min_zoom": 3,
             "max_zoom": 18,
             "local_tile_dir": "",

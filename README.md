@@ -196,7 +196,7 @@ wall board and stays public. The page polls `/api/state` every 5 seconds —
 no WebSocket stack. Bind defaults to localhost.
 
 The map is Leaflet (vendored in `web/vendor/leaflet/`, no npm). Dev uses
-Carto Voyager tiles from the public CDN — pan, zoom, real geography.
+Esri Light Gray Canvas tiles from the public CDN (switchable on the board) — pan, zoom, real geography.
 Kiosk uses the same map. For production, build a local XYZ pack and point
 `map.local_tile_dir` at it so the browser never leaves the LAN:
 
