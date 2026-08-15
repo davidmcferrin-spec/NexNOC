@@ -317,6 +317,18 @@ class TestHttpServer(unittest.TestCase):
                 return exc.code, parsed
             raise AssertionError(f"{method} {path} -> {exc.code} {parsed}") from None
 
+    def _audit_entries(self):
+        path = os.environ["NEXNOC_AUDIT_FILE"]
+        if not os.path.isfile(path):
+            return []
+        rows = []
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    rows.append(json.loads(line))
+        return rows
+
     def test_api_state(self):
         status, headers, body = self._get("/api/state")
         self.assertEqual(status, 200)
@@ -511,6 +523,49 @@ class TestHttpServer(unittest.TestCase):
         self.assertTrue(listed["credentials_ready"])
         self.assertNotIn("api_password", listed)
         self.assertNotIn("secret-from-portal", json.dumps(payload))
+
+    def test_failed_inventory_write_audits_ok_false(self):
+        status, payload = self._send("POST", "/api/cities", {}, raw=True)
+        self.assertEqual(status, 400)
+        self.assertIn("required", payload.get("error", ""))
+        inventory = [e for e in self._audit_entries() if e.get("action") == "inventory"]
+        self.assertTrue(inventory)
+        self.assertFalse(inventory[-1]["ok"])
+        self.assertEqual(inventory[-1]["method"], "POST")
+        self.assertEqual(inventory[-1]["path"], "/api/cities")
+
+        status, created = self._send("POST", "/api/cities", {"name": "Audit City"})
+        self.assertEqual(status, 201)
+        inventory = [e for e in self._audit_entries() if e.get("action") == "inventory"]
+        self.assertTrue(inventory[-1]["ok"])
+
+    def test_fixed_input_cannot_patch_to_sdi_out(self):
+        port_id = self.db.add_port(
+            self.device_id, "SDI IN 1", kind="sdi_in",
+            capability="input", direction="input",
+        )
+        for body in ({"kind": "sdi_out"}, {"kind": "sdi_out", "direction": "output"}):
+            status, payload = self._send(
+                "PATCH", f"/api/ports/{port_id}", body, raw=True,
+            )
+            self.assertEqual(status, 400, body)
+            self.assertIn("fixed input", payload.get("error", ""))
+            row = self.db.get_port(port_id)
+            self.assertEqual(row["kind"], "sdi_in")
+            self.assertEqual(row["capability"], "input")
+            self.assertEqual(row["direction"], "input")
+
+    def test_assignable_direction_patch_still_sets_kind(self):
+        port_id = self.db.add_port(
+            self.device_id, "BNC X", kind="other",
+            capability="assignable", direction="unused",
+        )
+        status, payload = self._send(
+            "PATCH", f"/api/ports/{port_id}", {"direction": "output"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["port"]["direction"], "output")
+        self.assertEqual(payload["port"]["kind"], "sdi_out")
 
     def test_duplicate_mgmt_host_rejected(self):
         site_id = self.db.get_device(self.device_id).site_id

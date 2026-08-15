@@ -543,6 +543,13 @@ def _handle_ports(db: Database, method: str, item_id: Optional[int], body: dict)
                 fields[key] = body[key]
         if "device_id" in body:
             fields["device_id"] = int(body["device_id"])
+        implied = fields.get("direction")
+        if implied is None and fields.get("kind") == "sdi_out":
+            implied = "output"
+        elif implied is None and fields.get("kind") == "sdi_in":
+            implied = "input"
+        if implied is not None:
+            check_port_direction(db, item_id, implied)
         if "direction" in fields and "kind" not in fields:
             apply_port_direction(db, item_id, fields["direction"])
             fields.pop("direction", None)

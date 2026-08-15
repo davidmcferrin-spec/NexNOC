@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote, urlparse
 
-from audit import audit_log
+from audit import audit_log, audit_writable
 from auth import load_session_user, next_url, parse_query, request_is_secure, token_from_cookie
 from auth_api import AuthError, handle_auth
 from db import Database, Device, utcnow_iso
@@ -854,23 +854,24 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
             if any(key in body for key in SECRET_KEYS) and not perms.get("manage_credentials"):
                 self._send_json(403, {"error": "access denied"})
                 return
-            if not audit_log(
-                "inventory", user, self._client_ip(),
-                {"method": method, "path": path}, ok=True,
-            ):
+            if not audit_writable():
                 self._send_json(500, {"error": "audit write failed"})
                 return
             try:
                 status, payload = handle_inventory(db, secrets_path, method, path, body, uploads)
             except LookupError as exc:
-                self._send_json(404, {"error": str(exc)})
-                return
+                status, payload = 404, {"error": str(exc)}
             except ValueError as exc:
-                self._send_json(400, {"error": str(exc)})
-                return
+                status, payload = 400, {"error": str(exc)}
             except OSError as exc:
                 logger.exception("inventory write failed")
-                self._send_json(500, {"error": f"could not write: {exc}"})
+                status, payload = 500, {"error": f"could not write: {exc}"}
+            ok = 200 <= status < 300
+            if not audit_log(
+                "inventory", user, self._client_ip(),
+                {"method": method, "path": path}, ok=ok,
+            ):
+                self._send_json(500, {"error": "audit write failed"})
                 return
             self._send_json(status, payload)
 

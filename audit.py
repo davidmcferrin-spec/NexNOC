@@ -42,6 +42,19 @@ def _rotate(path: Path) -> None:
         logger.warning("audit rotate failed: %s", exc)
 
 
+def audit_writable(path: Optional[Path] = None) -> bool:
+    """True if an audit line could be appended. Does not write one."""
+    dest = path or default_audit_path()
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with dest.open("a", encoding="utf-8"):
+            pass
+        return True
+    except OSError as exc:
+        logger.error("audit write failed: %s", exc)
+        return False
+
+
 def audit_log(action: str, user: Optional[dict], ip: str = "",
               details: Optional[dict] = None, ok: Optional[bool] = None,
               path: Optional[Path] = None) -> bool:
