@@ -39,6 +39,7 @@ body {
 .auth-card h1 { margin: 0 0 6px; font-size: 22px; }
 .auth-subtitle { color: var(--muted); margin: 0 0 16px; }
 .auth-form, .auth-card label { display: flex; flex-direction: column; gap: 6px; }
+.auth-form[hidden] { display: none; }
 .auth-card label { margin-bottom: 12px; color: var(--muted); font-size: 13px; }
 .auth-card input {
   background: var(--panel-2);

@@ -2807,8 +2807,6 @@
     const adminTab = $("tab-admin");
     if (adminBtn) adminBtn.hidden = !canAdmin();
     if (adminTab) adminTab.hidden = !canAdmin();
-    const modal = $("pw-modal");
-    if (modal) modal.hidden = !(currentUser && currentUser.must_change_password && !KIOSK);
   }
 
   async function loadSession() {
@@ -2820,6 +2818,10 @@
     }
     const data = await res.json();
     currentUser = data.user;
+    if (currentUser && currentUser.must_change_password) {
+      location.replace("/?reason=password");
+      throw new Error("password change required");
+    }
     applyAuthChrome();
   }
 
@@ -2929,23 +2931,6 @@
     location.href = "/";
   });
   $("admin-open")?.addEventListener("click", () => setView("admin"));
-  $("pw-form")?.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    const err = $("pw-error");
-    err.hidden = true;
-    try {
-      const data = new FormData(ev.target);
-      const result = await apiSend("POST", "/api/auth/password", {
-        current_password: data.get("current_password"),
-        new_password: data.get("new_password"),
-      });
-      currentUser = result.user;
-      applyAuthChrome();
-    } catch (exc) {
-      err.hidden = false;
-      err.textContent = exc.message;
-    }
-  });
   $("admin-add-user")?.addEventListener("click", () => openUserForm(null));
   $("user-form-cancel")?.addEventListener("click", () => { $("user-modal").hidden = true; });
   $("user-form")?.addEventListener("submit", async (ev) => {

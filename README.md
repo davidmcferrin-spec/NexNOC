@@ -240,7 +240,8 @@ in SQLite. Seeded on first start:
 | `admin` | `password` | Administrator |
 | `user` | `password` | Viewer |
 
-Change both on first login (`must_change_password`). Roles OR together;
+Change both on first login (`must_change_password`) on the login page
+before `/dashboard` opens. Roles OR together;
 per-user grant/deny overrides win.
 
 | Role | Map / links / inventory | Inventory writes | Users / LDAP |

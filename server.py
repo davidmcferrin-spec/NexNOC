@@ -779,19 +779,26 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
                 return
 
             if path in ("/login", "/login.html"):
-                self._redirect("/dashboard" if user else "/")
+                if user and not user.get("must_change_password"):
+                    self._redirect("/dashboard")
+                else:
+                    self._redirect("/?reason=password" if user else "/")
                 return
             if path in ("/", "/index.html"):
-                if user:
+                if user and not user.get("must_change_password"):
                     self._redirect("/dashboard")
                     return
                 login = WEB_ROOT / "index.html"
                 if login.is_file():
                     self._send_file(login)
                     return
-            if path in ("/dashboard", "/dashboard.html") and not user:
-                self._redirect(f"/?next={next_url(path)}")
-                return
+            if path in ("/dashboard", "/dashboard.html"):
+                if not user:
+                    self._redirect(f"/?next={next_url(path)}")
+                    return
+                if user.get("must_change_password"):
+                    self._redirect("/?reason=password")
+                    return
 
             target = _safe_web_path(path)
             if target is None:

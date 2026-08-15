@@ -378,7 +378,9 @@ class TestHttpServer(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"Sign in", login)
         self.assertIn(b"login.css", login)
+        self.assertIn(b'id="pw-form"', login)
         self.assertNotIn(b"app.js", login)
+        self.assertNotIn(b'id="pw-modal"', body)
         status, headers, _ = self._get("/login", auth=False, follow=False)
         self.assertEqual(status, 302)
         self.assertEqual(headers.get("Location"), "/")
@@ -388,6 +390,17 @@ class TestHttpServer(unittest.TestCase):
         status, headers, _ = self._get("/dashboard", auth=False, follow=False)
         self.assertEqual(status, 302)
         self.assertIn("/?next=", headers.get("Location", ""))
+
+    def test_password_change_blocks_dashboard(self):
+        row = self.db.get_user_by_username("admin")
+        self.db.update_user(row["id"], must_change_password=True)
+        status, headers, _ = self._get("/dashboard", follow=False)
+        self.assertEqual(status, 302)
+        self.assertIn("reason=password", headers.get("Location", ""))
+        status, _, login = self._get("/", follow=False)
+        self.assertEqual(status, 200)
+        self.assertIn(b'id="pw-form"', login)
+        self.assertNotIn(b"app.js", login)
 
     def test_static_js(self):
         status, headers, body = self._get("/app.js")

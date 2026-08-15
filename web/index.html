@@ -9,8 +9,8 @@
 <body class="auth-page">
   <div class="auth-card">
     <div class="auth-logo">NexNOC</div>
-    <h1>Sign in</h1>
-    <p class="auth-subtitle">NOC dashboard</p>
+    <h1 id="auth-title">Sign in</h1>
+    <p class="auth-subtitle" id="auth-subtitle">NOC dashboard</p>
     <div class="auth-error" id="auth-error" hidden></div>
     <form id="login-form" class="auth-form">
       <label>Username
@@ -20,6 +20,15 @@
         <input name="password" type="password" autocomplete="current-password" required>
       </label>
       <button type="submit" class="btn auth-submit">Sign in</button>
+    </form>
+    <form id="pw-form" class="auth-form" hidden>
+      <label>Current password
+        <input name="current_password" type="password" autocomplete="current-password" required>
+      </label>
+      <label>New password
+        <input name="new_password" type="password" autocomplete="new-password" required minlength="6">
+      </label>
+      <button type="submit" class="btn auth-submit">Save password</button>
     </form>
     <p class="auth-kiosk"><a href="/kiosk">Open kiosk board</a></p>
   </div>
@@ -37,19 +46,48 @@
     const params = new URLSearchParams(location.search);
     const next = safeNext(params.get("next"));
     const err = document.getElementById("auth-error");
-    if (params.get("reason") === "timeout") {
-      err.hidden = false;
-      err.textContent = "Session expired after inactivity.";
+    const loginForm = document.getElementById("login-form");
+    const pwForm = document.getElementById("pw-form");
+
+    function showError(message) {
+      err.hidden = !message;
+      err.textContent = message || "";
     }
 
-    fetch("/api/auth/me").then((res) => {
-      if (res.ok) location.replace(next);
+    function showPasswordForm() {
+      document.title = "Change password — NexNOC";
+      document.getElementById("auth-title").textContent = "Change password";
+      document.getElementById("auth-subtitle").textContent =
+        "Change the seeded password before opening the board.";
+      loginForm.hidden = true;
+      pwForm.hidden = false;
+      pwForm.current_password.focus();
+    }
+
+    function finishLogin(user) {
+      if (user && user.must_change_password) {
+        showPasswordForm();
+        return;
+      }
+      location.href = next;
+    }
+
+    if (params.get("reason") === "timeout") {
+      showError("Session expired after inactivity.");
+    } else if (params.get("reason") === "password") {
+      showError("Change your password before opening the board.");
+    }
+
+    fetch("/api/auth/me").then(async (res) => {
+      if (!res.ok) return;
+      const payload = await res.json().catch(() => ({}));
+      finishLogin(payload.user);
     }).catch(() => { /* stay on the form */ });
 
-    document.getElementById("login-form").addEventListener("submit", async (ev) => {
+    loginForm.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const data = new FormData(ev.target);
-      err.hidden = true;
+      showError("");
       try {
         const res = await fetch("/api/auth/login", {
           method: "POST",
@@ -61,10 +99,30 @@
         });
         const payload = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}`);
+        finishLogin(payload.user);
+      } catch (exc) {
+        showError(exc.message);
+      }
+    });
+
+    pwForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const data = new FormData(ev.target);
+      showError("");
+      try {
+        const res = await fetch("/api/auth/password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            current_password: data.get("current_password"),
+            new_password: data.get("new_password"),
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}`);
         location.href = next;
       } catch (exc) {
-        err.hidden = false;
-        err.textContent = exc.message;
+        showError(exc.message);
       }
     });
   </script>
