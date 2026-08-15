@@ -17,7 +17,6 @@
       <button type="button" data-view="map" class="active">Map</button>
       <button type="button" data-view="links">Links</button>
       <button type="button" data-view="inventory">Inventory</button>
-      <button type="button" data-view="edit">Edit</button>
     </nav>
     <div class="summary" id="summary" aria-live="polite"></div>
     <a class="kiosk-link" href="/kiosk" title="Open kiosk board">Kiosk</a>
@@ -55,32 +54,42 @@
           <option value="haivision">Haivision</option>
           <option value="net_insight">Net Insight</option>
         </select>
+        <button type="button" class="btn" id="link-new">New flow</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Signal</th>
-              <th>Source port</th>
-              <th>Source device</th>
-              <th>Source city</th>
-              <th>Source site</th>
-              <th>Dest city</th>
-              <th>Dest site</th>
-              <th>Dest device</th>
-              <th>Origin</th>
-              <th>Direction</th>
-            </tr>
-          </thead>
-          <tbody id="links-body"></tbody>
-        </table>
-        <p class="empty" id="links-empty" hidden>No flows match.</p>
+      <div class="split with-form">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Signal</th>
+                <th>Source port</th>
+                <th>Source device</th>
+                <th>Source city</th>
+                <th>Source site</th>
+                <th>Dest city</th>
+                <th>Dest site</th>
+                <th>Dest device</th>
+                <th>Origin</th>
+                <th>Direction</th>
+              </tr>
+            </thead>
+            <tbody id="links-body"></tbody>
+          </table>
+          <p class="empty" id="links-empty" hidden>No flows match.</p>
+        </div>
+        <aside class="panel" id="link-panel">
+          <p class="muted">Click a flow to edit, or New flow.</p>
+        </aside>
       </div>
     </section>
 
     <section id="view-inventory" class="view">
-      <div class="split">
+      <div class="toolbar">
+        <input id="inv-search" type="search" placeholder="Filter devices…">
+        <button type="button" class="btn" id="inv-new">New device</button>
+      </div>
+      <div class="split with-form">
         <div class="table-wrap">
           <table>
             <thead>
@@ -90,7 +99,6 @@
                 <th>Site</th>
                 <th>Vendor</th>
                 <th>Model</th>
-                <th>Role</th>
                 <th>Host</th>
                 <th>Driver</th>
                 <th>Last seen</th>
@@ -101,33 +109,7 @@
           <p class="empty" id="inv-empty" hidden>No devices. Bootstrap from config.json first.</p>
         </div>
         <aside class="panel" id="inv-panel">
-          <p class="muted">Click a device for configuration and paths.</p>
-        </aside>
-      </div>
-    </section>
-
-    <section id="view-edit" class="view">
-      <div class="toolbar edit-toolbar">
-        <div class="edit-kinds" id="edit-kinds">
-          <button type="button" data-kind="devices" class="active">Devices</button>
-          <button type="button" data-kind="flows">Flows</button>
-          <button type="button" data-kind="ports">Ports</button>
-          <button type="button" data-kind="sites">Sites</button>
-          <button type="button" data-kind="cities">Cities</button>
-        </div>
-        <input id="edit-search" type="search" placeholder="Filter…">
-        <button type="button" class="btn" id="edit-new">New</button>
-      </div>
-      <div class="split edit-split">
-        <div class="table-wrap">
-          <table>
-            <thead id="edit-head"></thead>
-            <tbody id="edit-body"></tbody>
-          </table>
-          <p class="empty" id="edit-empty" hidden>Nothing here yet.</p>
-        </div>
-        <aside class="panel" id="edit-panel">
-          <p class="muted">Select a row or click New. Host and credentials can be filled in later — missing IPs still show on the map.</p>
+          <p class="muted">Click a device to edit it. Host and credentials can be filled in later.</p>
         </aside>
       </div>
     </section>

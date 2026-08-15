@@ -39,12 +39,21 @@ from typing import Optional
 from db import Database, Device
 from drivers.base import CollectResult, Driver, DriverResolutionError, resolve_driver
 from drivers.registry import DRIVER_REGISTRY
-from drivers.snmp_util import SnmpError
-from envfile import default_env_path, get_value
+from drivers.snmp_util import SnmpError, SnmpTarget, snmp_ping
+from envfile import default_env_path, get_value, upsert_values
 
 logger = logging.getLogger("nexnoc.poller")
 
 CONSECUTIVE_FAILURES_THRESHOLD = 3  # misses in a row before status flips to 'unreachable'
+
+# Old importer names → current site names. Applied on bootstrap so leftover
+# rows (e.g. "Washington DC - WDCW") collapse into the canonical site.
+SITE_ALIASES = {
+    "Washington DC - WDCW": "WDCW TV Station",
+    "NewsNation DC": "400 N. Capital St",
+    "Washington DC - NN": "400 N. Capital St",
+    "Washington DC": "400 N. Capital St",
+}
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -72,6 +81,7 @@ def bootstrap(db: Database, config: dict) -> None:
     deliberate manual action so a typo can't silently nuke poll history."""
     existing_cities = _bootstrap_cities(db, config)
     existing_sites = {row["name"]: row["id"] for row in db.list_sites()}
+    _bootstrap_site_aliases(db, config, existing_sites)
     for site_cfg in config.get("sites", []):
         city_name = site_cfg.get("city") or ""
         city_id = existing_cities.get(city_name) if city_name else None
@@ -118,6 +128,17 @@ def bootstrap(db: Database, config: dict) -> None:
                 api_username_env=dev_cfg.get("api_username_env"),
                 api_password_env=dev_cfg.get("api_password_env"),
                 snmp_community_env=dev_cfg.get("snmp_community_env"),
+                snmp_host=dev_cfg.get("snmp_host"),
+                snmp_port=dev_cfg.get("snmp_port", 161),
+                snmp_version=dev_cfg.get("snmp_version", "2c"),
+                snmp_enabled=dev_cfg.get("snmp_enabled"),
+                snmp_trap_enabled=dev_cfg.get("snmp_trap_enabled", True),
+                snmp_v3_user_env=dev_cfg.get("snmp_v3_user_env"),
+                snmp_v3_sec_level=dev_cfg.get("snmp_v3_sec_level", "authPriv"),
+                snmp_v3_auth_proto=dev_cfg.get("snmp_v3_auth_proto", "SHA"),
+                snmp_v3_auth_pass_env=dev_cfg.get("snmp_v3_auth_pass_env"),
+                snmp_v3_priv_proto=dev_cfg.get("snmp_v3_priv_proto", "AES"),
+                snmp_v3_priv_pass_env=dev_cfg.get("snmp_v3_priv_pass_env"),
                 nms_host=dev_cfg.get("nms_host"),
                 nms_port=dev_cfg.get("nms_port"),
                 nms_api_key_env=dev_cfg.get("nms_api_key_env"),
@@ -135,6 +156,7 @@ def bootstrap(db: Database, config: dict) -> None:
 
     _bootstrap_trunks_and_signals(db, config, existing_sites)
     _bootstrap_ports_and_flows(db, config, existing_sites, existing_cities)
+    _bootstrap_device_secrets(config)
 
 
 def _bootstrap_trunks_and_signals(db: Database, config: dict, existing_sites: dict) -> None:
@@ -239,6 +261,49 @@ def _bootstrap_cities(db: Database, config: dict) -> dict:
                 db, name, lat=site_cfg.get("lat"), lng=site_cfg.get("lng"),
             )
     return existing
+
+
+def _bootstrap_device_secrets(config: dict) -> None:
+    """Copy api_username / api_password from config.json into the env file.
+
+    Values stay on the device records in config (and later in SQL). The
+    poller still resolves them through env names. Never logs the values.
+    """
+    updates: dict[str, str] = {}
+    for dev_cfg in config.get("devices", []):
+        user_env = dev_cfg.get("api_username_env")
+        pass_env = dev_cfg.get("api_password_env")
+        if user_env and dev_cfg.get("api_username"):
+            updates[user_env] = str(dev_cfg["api_username"])
+        if pass_env and dev_cfg.get("api_password"):
+            updates[pass_env] = str(dev_cfg["api_password"])
+    if not updates:
+        return
+    upsert_values(default_env_path(), updates)
+    logger.info("Loaded %d credential values from config.json into env file", len(updates))
+
+
+def _bootstrap_site_aliases(db: Database, config: dict, existing_sites: dict) -> None:
+    """Rename or merge leftover site names onto the canonical config names."""
+    wanted = {site.get("name") for site in config.get("sites", []) if site.get("name")}
+    for old_name, new_name in SITE_ALIASES.items():
+        if new_name not in wanted:
+            continue
+        old_id = existing_sites.get(old_name)
+        if old_id is None:
+            continue
+        new_id = existing_sites.get(new_name)
+        if new_id is None:
+            db.update_site(old_id, name=new_name)
+            existing_sites[new_name] = old_id
+            del existing_sites[old_name]
+            logger.info("Renamed site %r -> %r", old_name, new_name)
+            continue
+        if new_id == old_id:
+            continue
+        db.merge_sites(old_id, new_id)
+        del existing_sites[old_name]
+        logger.info("Merged site %r into %r", old_name, new_name)
 
 
 def _guess_port_kind(name: str) -> str:
@@ -472,6 +537,39 @@ def resolve_env(name: Optional[str]) -> Optional[str]:
     return value
 
 
+def snmp_target_for(device: Device) -> Optional[SnmpTarget]:
+    """Build a GET target when SNMP is enabled or this box is SNMP-primary."""
+    use = device.snmp_enabled or device.access_mode == "direct_snmp"
+    if not use:
+        return None
+    host = (device.snmp_host or device.mgmt_host or "").strip()
+    if not host:
+        return None
+    version = device.snmp_version or "2c"
+    if version == "3":
+        target = SnmpTarget(
+            host=host,
+            port=device.snmp_port or 161,
+            version="3",
+            v3_user=resolve_env(device.snmp_v3_user_env),
+            v3_sec_level=device.snmp_v3_sec_level or "authPriv",
+            v3_auth_proto=device.snmp_v3_auth_proto or "SHA",
+            v3_auth_pass=resolve_env(device.snmp_v3_auth_pass_env),
+            v3_priv_proto=device.snmp_v3_priv_proto or "AES",
+            v3_priv_pass=resolve_env(device.snmp_v3_priv_pass_env),
+        )
+    else:
+        target = SnmpTarget(
+            host=host,
+            port=device.snmp_port or 161,
+            version=version,
+            community=resolve_env(device.snmp_community_env),
+        )
+    if not target.configured():
+        return None
+    return target
+
+
 def build_driver(db: Database, device: Device) -> Driver:
     """Resolve and construct the right driver for a device (vendor + model +
     firmware_version, or an explicit driver_override), resolving credentials
@@ -489,12 +587,14 @@ def build_driver(db: Database, device: Device) -> Driver:
     )
     db.set_resolved_driver(device.id, driver_cls.driver_id)
 
-    if device.vendor == "net_insight":
+    if device.vendor in ("net_insight", "generic_snmp"):
+        target = snmp_target_for(device)
         return driver_cls(
             host=device.snmp_host or device.mgmt_host,
             snmp_community=resolve_env(device.snmp_community_env),
             snmp_port=device.snmp_port,
             access_mode=device.access_mode,
+            snmp_target=target,
         )
 
     # appear / haivision - both HTTP/JSON with username+password. If a
@@ -524,50 +624,99 @@ def _poll_method_for(device: Device) -> str:
 async def poll_device(db: Database, device: Device) -> None:
     if not device.poll_enabled:
         return
-    if not (device.mgmt_host or "").strip():
+    if not (device.mgmt_host or "").strip() and not (device.snmp_host or "").strip():
         logger.info("Skipping %r — no management IP (edit in the portal)", device.name)
         return
 
     method = _poll_method_for(device)
     loop = asyncio.get_running_loop()
+    has_api = device.access_mode in ("direct_api", "via_nms")
+    snmp_target = snmp_target_for(device)
 
-    try:
-        driver = build_driver(db, device)
-    except DriverResolutionError as exc:
-        logger.error("Cannot poll device %r: %s", device.name, exc)
-        db.record_poll(device.id, method=method, success=False, error_message=str(exc))
-        _handle_poll_result(db, device, success=False)
-        return
-
-    try:
-        # Driver I/O (urllib, subprocess) is blocking; run off the event
-        # loop so one slow/unreachable device doesn't stall the others.
-        reachable = await loop.run_in_executor(None, driver.ping)
-    except NotImplementedError as exc:
-        # e.g. Net Insight via_nms with no driver wired up yet - this is a
-        # config error, not a transient failure; log loudly but don't spin.
-        logger.error("Device %r: %s", device.name, exc)
-        db.record_poll(device.id, method=method, success=False, error_message=str(exc))
-        _handle_poll_result(db, device, success=False)
-        return
-    except (SnmpError, Exception) as exc:  # noqa: BLE001 - background poll loop must never crash
-        # the process over one device's bug; genuinely want catch-all here.
-        reachable = False
-        logger.exception("Unexpected error polling device %r", device.name)
-        db.record_poll(device.id, method=method, success=False, error_message=str(exc))
-        _handle_poll_result(db, device, success=False)
-        return
-
+    api_ok: Optional[bool] = None
+    snmp_ok: Optional[bool] = None
+    driver = None
     snapshot = None
-    if reachable:
-        try:
-            snapshot = await loop.run_in_executor(None, driver.collect)
-        except Exception:  # noqa: BLE001 - collect is best-effort after a good ping
-            logger.exception("collect() failed for device %r after successful ping", device.name)
 
-    db.record_poll(device.id, method=method, success=reachable,
-                    error_message=None if reachable else "ping failed")
-    _handle_poll_result(db, device, success=reachable, snapshot=snapshot)
+    if has_api:
+        try:
+            driver = build_driver(db, device)
+        except DriverResolutionError as exc:
+            logger.error("Cannot poll device %r: %s", device.name, exc)
+            db.record_poll(device.id, method=method, success=False, error_message=str(exc))
+            api_ok = False
+        except NotImplementedError as exc:
+            logger.error("Device %r: %s", device.name, exc)
+            db.record_poll(device.id, method=method, success=False, error_message=str(exc))
+            api_ok = False
+        else:
+            try:
+                api_ok = await loop.run_in_executor(None, driver.ping)
+            except NotImplementedError as exc:
+                logger.error("Device %r: %s", device.name, exc)
+                db.record_poll(device.id, method=method, success=False, error_message=str(exc))
+                api_ok = False
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Unexpected error polling device %r via API", device.name)
+                db.record_poll(device.id, method=method, success=False, error_message=str(exc))
+                api_ok = False
+            else:
+                db.record_poll(device.id, method=method, success=bool(api_ok),
+                                error_message=None if api_ok else "API ping failed")
+                if api_ok:
+                    try:
+                        snapshot = await loop.run_in_executor(None, driver.collect)
+                    except Exception:  # noqa: BLE001
+                        logger.exception("collect() failed for device %r after successful ping", device.name)
+
+    if device.access_mode == "direct_snmp" and not has_api:
+        try:
+            driver = build_driver(db, device)
+            snmp_ok = await loop.run_in_executor(None, driver.ping)
+        except DriverResolutionError as exc:
+            logger.error("Cannot poll device %r: %s", device.name, exc)
+            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+            snmp_ok = False
+        except NotImplementedError as exc:
+            logger.error("Device %r: %s", device.name, exc)
+            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+            snmp_ok = False
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Unexpected error polling device %r via SNMP", device.name)
+            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+            snmp_ok = False
+        else:
+            db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
+                            error_message=None if snmp_ok else "SNMP ping failed")
+    elif snmp_target is not None:
+        try:
+            snmp_ok = await loop.run_in_executor(None, lambda: snmp_ping(target=snmp_target, host=snmp_target.host))
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("SNMP GET failed for device %r", device.name)
+            snmp_ok = False
+            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+        else:
+            db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
+                            error_message=None if snmp_ok else "SNMP ping failed")
+
+    if api_ok is None and snmp_ok is None:
+        return
+
+    both_fail = (api_ok is False and snmp_ok is not True) or (snmp_ok is False and api_ok is not True)
+    if api_ok is True and snmp_ok is False:
+        _consecutive_failures[device.id] = 0
+        db.set_device_status(device.id, "degraded", error="API up, SNMP GET failed")
+        if snapshot is not None:
+            _apply_snapshot(db, device, snapshot)
+        return
+    if snmp_ok is True and api_ok is False:
+        _consecutive_failures[device.id] = 0
+        db.set_device_status(device.id, "degraded", error="SNMP up, API ping failed")
+        return
+    if both_fail and api_ok is not True and snmp_ok is not True:
+        _handle_poll_result(db, device, success=False)
+        return
+    _handle_poll_result(db, device, success=True, snapshot=snapshot)
 
 
 def _apply_snapshot(db: Database, device: Device, snapshot: CollectResult) -> None:

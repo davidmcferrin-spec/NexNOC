@@ -257,6 +257,9 @@ class TestHttpServer(unittest.TestCase):
         status, headers, body = self._get("/")
         self.assertEqual(status, 200)
         self.assertIn(b"NexNOC", body)
+        self.assertNotIn(b'data-view="edit"', body)
+        self.assertIn(b'id="inv-new"', body)
+        self.assertIn(b'id="link-new"', body)
         self.assertIn("text/html", headers.get("Content-Type", ""))
         status, _, body = self._get("/kiosk")
         self.assertEqual(status, 200)
@@ -360,6 +363,23 @@ class TestHttpServer(unittest.TestCase):
         self.assertTrue(listed["credentials_ready"])
         self.assertNotIn("api_password", listed)
         self.assertNotIn("secret-from-portal", json.dumps(payload))
+
+    def test_duplicate_mgmt_host_rejected(self):
+        site_id = self.db.get_device(self.device_id).site_id
+        data = json.dumps({
+            "name": "CHI-DUP-B",
+            "vendor": "haivision",
+            "site_id": site_id,
+            "mgmt_host": "10.0.1.10",
+        }).encode("utf-8")
+        req = Request(
+            f"http://127.0.0.1:{self.port}/api/devices", data=data, method="POST",
+        )
+        req.add_header("Content-Type", "application/json")
+        with self.assertRaises(HTTPError) as ctx:
+            urlopen(req, timeout=3)
+        self.assertEqual(ctx.exception.code, 400)
+        self.assertIn(b"already used", ctx.exception.read())
 
     def test_create_flow_and_delete(self):
         status, flow = self._send("POST", "/api/flows", {

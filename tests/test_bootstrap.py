@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -154,6 +155,43 @@ class TestBootstrap(unittest.TestCase):
         bootstrap(self.db, cfg)
         self.assertEqual(len(self.db.list_signals()), 1)
         self.assertEqual(len(self.db.list_flows()), 0)
+
+    def test_bootstrap_merges_wdcw_site_alias(self):
+        chi = self.db.add_site("Chicago", city="Chicago")
+        old = self.db.add_site("Washington DC - WDCW", city="Washington DC")
+        self.db.add_device(site_id=old, name="WDCW-HAI-9.100", vendor="haivision",
+                           mgmt_host="10.97.9.100")
+        src = self.db.add_device(site_id=chi, name="CHI-HAI-1", vendor="haivision",
+                                 mgmt_host="10.0.0.1")
+        self.db.add_flow("west", src, dest_site_id=old)
+        bootstrap(self.db, {
+            "cities": [{"name": "Washington DC", "lat": 38.9, "lng": -77.0}],
+            "sites": [
+                {"name": "Chicago", "city": "Chicago"},
+                {"name": "WDCW TV Station", "city": "Washington DC", "lat": 38.92, "lng": -77.01},
+            ],
+            "devices": [],
+        })
+        names = [row["name"] for row in self.db.list_sites()]
+        self.assertIn("WDCW TV Station", names)
+        self.assertNotIn("Washington DC - WDCW", names)
+        device = next(d for d in self.db.list_devices() if d.name == "WDCW-HAI-9.100")
+        site = self.db.get_site(device.site_id)
+        self.assertEqual(site["name"], "WDCW TV Station")
+
+    def test_bootstrap_copies_config_passwords_to_env(self):
+        env_path = Path(self.tmpdir.name) / "nexnoc.env"
+        os.environ["NEXNOC_ENV_FILE"] = str(env_path)
+        self.addCleanup(lambda: os.environ.pop("NEXNOC_ENV_FILE", None))
+        cfg = _config()
+        cfg["devices"][0]["api_username_env"] = "HSV_X20_1_USER"
+        cfg["devices"][0]["api_password_env"] = "HSV_X20_1_PASS"
+        cfg["devices"][0]["api_username"] = "admin"
+        cfg["devices"][0]["api_password"] = "secret"
+        bootstrap(self.db, cfg)
+        text = env_path.read_text(encoding="utf-8")
+        self.assertIn("HSV_X20_1_USER=admin", text)
+        self.assertIn("HSV_X20_1_PASS=secret", text)
 
     def test_bootstrap_pending_device_without_ip(self):
         cfg = _config()

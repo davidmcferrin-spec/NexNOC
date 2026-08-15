@@ -13,7 +13,10 @@ from typing import Optional
 from db import Database
 from envfile import is_env_key, is_set, upsert_values
 
-SECRET_KEYS = {"api_username", "api_password", "snmp_community"}
+SECRET_KEYS = {
+    "api_username", "api_password", "snmp_community",
+    "snmp_v3_user", "snmp_v3_auth_pass", "snmp_v3_priv_pass",
+}
 
 
 def _opt_int(value):
@@ -33,12 +36,22 @@ def device_secret_flags(device, env_path: Path) -> dict:
         "api_username_env": device.api_username_env,
         "api_password_env": device.api_password_env,
         "snmp_community_env": device.snmp_community_env,
+        "snmp_v3_user_env": device.snmp_v3_user_env,
+        "snmp_v3_auth_pass_env": device.snmp_v3_auth_pass_env,
+        "snmp_v3_priv_pass_env": device.snmp_v3_priv_pass_env,
         "api_username_set": is_set(env_path, device.api_username_env),
         "api_password_set": is_set(env_path, device.api_password_env),
         "snmp_community_set": is_set(env_path, device.snmp_community_env),
+        "snmp_v3_user_set": is_set(env_path, device.snmp_v3_user_env),
+        "snmp_v3_auth_set": is_set(env_path, device.snmp_v3_auth_pass_env),
+        "snmp_v3_priv_set": is_set(env_path, device.snmp_v3_priv_pass_env),
         "credentials_ready": (
             is_set(env_path, device.api_username_env)
             and is_set(env_path, device.api_password_env)
+        ),
+        "snmp_ready": (
+            is_set(env_path, device.snmp_community_env)
+            or is_set(env_path, device.snmp_v3_user_env)
         ),
     }
 
@@ -49,6 +62,9 @@ def apply_secrets(env_path: Path, names: dict[str, Optional[str]], body: dict) -
         ("api_username", names.get("api_username_env")),
         ("api_password", names.get("api_password_env")),
         ("snmp_community", names.get("snmp_community_env")),
+        ("snmp_v3_user", names.get("snmp_v3_user_env")),
+        ("snmp_v3_auth_pass", names.get("snmp_v3_auth_pass_env")),
+        ("snmp_v3_priv_pass", names.get("snmp_v3_priv_pass_env")),
     )
     for body_key, env_name in mapping:
         if body_key not in body:
@@ -57,7 +73,10 @@ def apply_secrets(env_path: Path, names: dict[str, Optional[str]], body: dict) -
             raise ValueError(f"{body_key} needs an env var name first")
         if not is_env_key(env_name):
             raise ValueError(f"invalid env var name {env_name!r}")
-        updates[env_name] = "" if body[body_key] is None else str(body[body_key])
+        raw = body[body_key]
+        if raw is None or raw == "":
+            continue
+        updates[env_name] = str(raw)
     if updates:
         upsert_values(env_path, updates)
 
@@ -135,7 +154,12 @@ def _handle_sites(db: Database, method: str, item_id: Optional[int], body: dict)
         db.update_site(item_id, **fields)
         return 200, {"site": dict(db.get_site(item_id))}
     if method == "DELETE":
-        db.delete_site(item_id)
+        try:
+            db.delete_site(item_id)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(
+                "Move or delete this site's devices (and trunks) first."
+            ) from exc
         return 200, {"deleted": item_id}
     raise LookupError("not found")
 
@@ -147,7 +171,10 @@ def _device_fields(body: dict) -> dict:
         "mgmt_host", "access_mode", "driver_override",
         "api_port", "api_scheme", "api_verify_tls",
         "api_username_env", "api_password_env",
-        "snmp_host", "snmp_port", "snmp_community_env",
+        "snmp_host", "snmp_port", "snmp_community_env", "snmp_version",
+        "snmp_enabled", "snmp_trap_enabled",
+        "snmp_v3_user_env", "snmp_v3_sec_level", "snmp_v3_auth_proto",
+        "snmp_v3_auth_pass_env", "snmp_v3_priv_proto", "snmp_v3_priv_pass_env",
         "nms_host", "nms_port", "nms_api_key_env", "nms_device_ref",
         "poll_enabled",
     ):
@@ -156,8 +183,13 @@ def _device_fields(body: dict) -> dict:
         value = body[key]
         if key in {"site_id", "api_port", "snmp_port", "nms_port"}:
             value = _opt_int(value) if key != "site_id" else int(value)
-        if key in {"api_username_env", "api_password_env", "snmp_community_env",
-                   "nms_api_key_env"} and value:
+        if key in {"api_verify_tls", "poll_enabled", "snmp_enabled", "snmp_trap_enabled"}:
+            value = bool(value)
+        if key in {
+            "api_username_env", "api_password_env", "snmp_community_env",
+            "nms_api_key_env", "snmp_v3_user_env", "snmp_v3_auth_pass_env",
+            "snmp_v3_priv_pass_env",
+        } and value:
             if not is_env_key(str(value)):
                 raise ValueError(f"invalid env var name {value!r}")
         fields[key] = value
@@ -191,6 +223,17 @@ def _handle_devices(db: Database, env_path: Path, method: str,
             api_username_env=body.get("api_username_env"),
             api_password_env=body.get("api_password_env"),
             snmp_community_env=body.get("snmp_community_env"),
+            snmp_host=body.get("snmp_host"),
+            snmp_port=int(body.get("snmp_port") or 161),
+            snmp_version=body.get("snmp_version") or "2c",
+            snmp_enabled=body.get("snmp_enabled"),
+            snmp_trap_enabled=body.get("snmp_trap_enabled", True),
+            snmp_v3_user_env=body.get("snmp_v3_user_env"),
+            snmp_v3_sec_level=body.get("snmp_v3_sec_level") or "authPriv",
+            snmp_v3_auth_proto=body.get("snmp_v3_auth_proto") or "SHA",
+            snmp_v3_auth_pass_env=body.get("snmp_v3_auth_pass_env"),
+            snmp_v3_priv_proto=body.get("snmp_v3_priv_proto") or "AES",
+            snmp_v3_priv_pass_env=body.get("snmp_v3_priv_pass_env"),
             nms_host=body.get("nms_host"),
             nms_port=_opt_int(body.get("nms_port")),
             nms_api_key_env=body.get("nms_api_key_env"),
@@ -202,6 +245,9 @@ def _handle_devices(db: Database, env_path: Path, method: str,
             "api_username_env": device.api_username_env,
             "api_password_env": device.api_password_env,
             "snmp_community_env": device.snmp_community_env,
+            "snmp_v3_user_env": device.snmp_v3_user_env,
+            "snmp_v3_auth_pass_env": device.snmp_v3_auth_pass_env,
+            "snmp_v3_priv_pass_env": device.snmp_v3_priv_pass_env,
         }, body)
         device = db.get_device(device_id)
         return 201, {"device": {"id": device.id, "name": device.name, **device_secret_flags(device, env_path)}}
@@ -219,6 +265,9 @@ def _handle_devices(db: Database, env_path: Path, method: str,
             "api_username_env": device.api_username_env,
             "api_password_env": device.api_password_env,
             "snmp_community_env": device.snmp_community_env,
+            "snmp_v3_user_env": device.snmp_v3_user_env,
+            "snmp_v3_auth_pass_env": device.snmp_v3_auth_pass_env,
+            "snmp_v3_priv_pass_env": device.snmp_v3_priv_pass_env,
         }, body)
         device = db.get_device(item_id)
         return 200, {"device": {"id": device.id, "name": device.name, **device_secret_flags(device, env_path)}}

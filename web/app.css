@@ -179,6 +179,16 @@ main { flex: 1; min-height: 0; display: flex; }
 }
 .panel h2 { margin: 0 0 4px; font-size: 16px; }
 .panel h3 { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.site-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+.site-head h3 { margin: 16px 0 8px; }
+.site-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.site-actions .btn { padding: 4px 8px; font-size: 12px; }
 .panel p { margin: 0 0 8px; }
 .muted { color: var(--muted); }
 .row-list { list-style: none; margin: 0; padding: 0; }
@@ -199,7 +209,7 @@ main { flex: 1; min-height: 0; display: flex; }
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
-.row-list button:hover { color: var(--accent); }
+.row-list li .btn { flex-shrink: 0; padding: 4px 8px; font-size: 12px; }
 
 .toolbar {
   display: flex;
@@ -227,22 +237,8 @@ tbody tr:hover { background: var(--panel-2); }
 tbody tr.sel { background: #1a2434; }
 .empty { padding: 24px; color: var(--muted); }
 
-.edit-toolbar { align-items: center; }
-.edit-kinds { display: flex; gap: 4px; }
-.edit-kinds button {
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font: inherit;
-}
-.edit-kinds button.active {
-  color: var(--text);
-  background: var(--panel-2);
-}
-.edit-split { grid-template-columns: 1fr 420px; }
+.split.with-form { grid-template-columns: 1fr 420px; }
+.map-wrap.with-form { grid-template-columns: 1fr 420px; }
 .form {
   display: flex;
   flex-direction: column;
@@ -321,8 +317,7 @@ tbody tr.sel { background: #1a2434; }
 body.kiosk .tabs,
 body.kiosk .kiosk-link,
 body.kiosk #view-links,
-body.kiosk #view-inventory,
-body.kiosk #view-edit { display: none !important; }
+body.kiosk #view-inventory { display: none !important; }
 body.kiosk #view-map { display: flex !important; }
 body.kiosk .map-wrap { grid-template-columns: 1fr 360px; }
 body.kiosk .mark { font-size: 20px; }

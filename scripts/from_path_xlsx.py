@@ -4,7 +4,9 @@ Includes every HAI and Appear path, even when IPs or credentials are missing.
 Devices without a management IP get an empty mgmt_host and poll_enabled=false
 so they show up in the portal for later editing.
 
-Never writes credential *values* — only env var names.
+Username/password values from the sheet are written onto each device in
+config.json (api_username / api_password) and also into config/nexnoc.env
+so the poller can resolve them. config.json is gitignored.
 """
 from __future__ import annotations
 
@@ -14,6 +16,11 @@ import zipfile
 import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from pathlib import Path
+
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from envfile import default_env_path, upsert_values  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 XLSX = ROOT / "Example Docs" / "Newsnation Global Path Naming.xlsx"
@@ -38,14 +45,14 @@ CITY: dict[str, str] = {
 SITE: dict[str, str] = {
     "NY": "New York",
     "CHI": "Chicago",
-    "DC": "Washington DC",
-    "NN DC": "Washington DC - NN",
+    "DC": "400 N. Capital St",
+    "NN DC": "400 N. Capital St",
     "INDY": "Indianapolis",
     "ATL CW": "Atlanta - CW",
     "CW ATL": "Atlanta - CW",
     "NY HMPTNS": "New York - Hamptons",
     "CONN": "Connecticut",
-    "WDCW": "Washington DC - WDCW",
+    "WDCW": "WDCW TV Station",
     "CW BURBANK": "Burbank - CW",
     "PAC12": "San Ramon - PAC12",
     "AM": "AM",
@@ -54,9 +61,8 @@ SITE: dict[str, str] = {
 SITE_CODE: dict[str, str] = {
     "New York": "NY",
     "Chicago": "CHI",
-    "Washington DC": "DC",
-    "Washington DC - NN": "NNDC",
-    "Washington DC - WDCW": "WDCW",
+    "400 N. Capital St": "DC",
+    "WDCW TV Station": "WDCW",
     "Indianapolis": "INDY",
     "Atlanta - CW": "ATL",
     "New York - Hamptons": "HMP",
@@ -79,9 +85,8 @@ CITY_COORDS: dict[str, tuple[float, float]] = {
 SITE_COORDS: dict[str, tuple[float, float]] = {
     "New York": (40.7128, -74.0060),
     "Chicago": (41.8781, -87.6298),
-    "Washington DC": (38.9072, -77.0369),
-    "Washington DC - NN": (38.9072, -77.0369),
-    "Washington DC - WDCW": (38.9200, -77.0100),
+    "400 N. Capital St": (38.8969, -77.0091),
+    "WDCW TV Station": (38.9200, -77.0100),
     "Indianapolis": (39.7684, -86.1581),
     "Atlanta - CW": (33.7490, -84.3880),
     "New York - Hamptons": (40.9634, -72.1848),
@@ -158,9 +163,30 @@ def host_of(s: str) -> str | None:
     return m.group(1) if m else None
 
 
-def short(ip: str) -> str:
-    _a, _b, c, d = ip.split(".")
-    return f"{c}.{d}"
+def cred_of(s: str) -> str:
+    s = (s or "").strip()
+    if not s or s in ("N/A", "?", "??", "n/a"):
+        return ""
+    return s
+
+
+def octets(ip: str) -> tuple[str, str]:
+    parts = ip.split(".")
+    return parts[2], parts[3]
+
+
+def vendor_prefix(vendor: str) -> str:
+    return "HAI" if vendor == "haivision" else "X20"
+
+
+def core_device_name(site: str, vendor: str, ip: str, unique_thirds: set) -> str:
+    """DC-HAI-40 for a unique third-octet box; DC-HAI-40.109 if another
+    box at the same site shares that octet. Last octet is link naming."""
+    third, last = octets(ip)
+    core = f"{site_code(site)}-{vendor_prefix(vendor)}-{third}"
+    if (site, vendor, third) in unique_thirds:
+        return core
+    return f"{core}.{last}"
 
 
 def title_place(s: str) -> str:
@@ -228,7 +254,16 @@ def ensure_env_example(device_list: list[dict]) -> None:
     path.write_text(existing, encoding="utf-8")
 
 
-def build_inventory(xlsx: Path | None = None) -> dict:
+def write_sheet_secrets(secrets: dict[str, str], env_path: Path | None = None) -> int:
+    """Write username/password values to nexnoc.env. Never logs values."""
+    clean = {k: v for k, v in secrets.items() if k and v}
+    if not clean:
+        return 0
+    upsert_values(env_path or default_env_path(), clean)
+    return len(clean)
+
+
+def build_inventory(xlsx: Path | None = None, collect_secrets: dict | None = None) -> dict:
     path = xlsx or XLSX
     zf = zipfile.ZipFile(path)
     ss = load_shared_strings(zf)
@@ -239,16 +274,28 @@ def build_inventory(xlsx: Path | None = None) -> dict:
     ports: list[dict] = []
     port_keys: set[tuple[str, str]] = set()
     flows: list[dict] = []
+    ips_by_third: dict[tuple[str, str, str], set[str]] = {}
+
+    def tally_ip(ip: str | None, place: str, vendor: str) -> None:
+        if not ip:
+            return
+        pl = norm_place(place) or "UNK"
+        site = SITE.get(pl, title_place(pl))
+        third, _last = octets(ip)
+        ips_by_third.setdefault((site, vendor, third), set()).add(ip)
+
+    def unique_thirds() -> set:
+        return {key for key, ips in ips_by_third.items() if len(ips) == 1}
 
     def add_dev(ip: str | None, place: str, vendor: str, role: str,
                 serial: str = "", hint: str = "") -> str | None:
         pl = norm_place(place) or "UNK"
         site = SITE.get(pl, title_place(pl))
-        prefix = "HAI" if vendor == "haivision" else "X20"
+        prefix = vendor_prefix(vendor)
         code = site_code(site)
         if ip:
             key = f"ip:{ip}"
-            name = f"{code}-{prefix}-{short(ip)}"
+            name = core_device_name(site, vendor, ip, unique_thirds())
             host = ip
             poll = True
         else:
@@ -285,6 +332,21 @@ def build_inventory(xlsx: Path | None = None) -> dict:
                 devices[key]["poll_enabled"] = True
         return devices[key]["name"]
 
+    def apply_creds(dev_name: str | None, user: str, password: str) -> None:
+        if not dev_name:
+            return
+        user, password = cred_of(user), cred_of(password)
+        if not user and not password:
+            return
+        for d in devices.values():
+            if d["name"] != dev_name:
+                continue
+            if user and not d.get("api_username"):
+                d["api_username"] = user
+            if password and not d.get("api_password"):
+                d["api_password"] = password
+            return
+
     def add_port(dev: str | None, name: str, kind: str) -> None:
         if not dev or not name:
             return
@@ -294,6 +356,10 @@ def build_inventory(xlsx: Path | None = None) -> dict:
         port_keys.add(key)
         ports.append({"device": dev, "name": name, "kind": kind})
 
+    # Sibling channels on one Global Path ID share the encoder/decoder IP.
+    # HAI 1012 has no Source IP because it is In 2 on the same box as HAI 1011.
+    hai_paths = []
+    path_last: dict[str, dict] = {}
     for r in sorted(hai):
         if r == 1:
             continue
@@ -301,44 +367,66 @@ def build_inventory(xlsx: Path | None = None) -> dict:
         qname = cell(row, "A")
         if not qname.upper().startswith("HAI"):
             continue
-        content = cell(row, "F")
+        path_id = cell(row, "B") or qname
         src_place = cell(row, "C") or "UNK"
+        prev = path_last.get(path_id) or {}
         src_ip = host_of(cell(row, "Q"))
+        if not src_ip and prev.get("src_place") == src_place:
+            src_ip = prev.get("src_ip")
+        dst_place = cell(row, "J") or prev.get("dst_place") or ""
+        dst2_place = cell(row, "M") or prev.get("dst2_place") or ""
         dst_ip = host_of(cell(row, "S"))
+        if not dst_ip and dst_place == (prev.get("dst_place") or ""):
+            dst_ip = prev.get("dst_ip")
         dst2_ip = host_of(cell(row, "W"))
-        src_port = cell(row, "D") or "In 1"
-        src_name = add_dev(src_ip, src_place, "haivision", "encoder",
-                           cell(row, "E"), hint=qname)
-        add_port(src_name, src_port, "sdi_in")
+        if not dst2_ip and dst2_place == (prev.get("dst2_place") or ""):
+            dst2_ip = prev.get("dst2_ip")
+        src_user = cred_of(cell(row, "H")) or (
+            prev.get("src_user") if prev.get("src_place") == src_place else ""
+        )
+        src_pass = cred_of(cell(row, "I")) or (
+            prev.get("src_pass") if prev.get("src_place") == src_place else ""
+        )
+        dst_user = cred_of(cell(row, "U")) or (
+            prev.get("dst_user") if dst_place == (prev.get("dst_place") or "") else ""
+        )
+        dst_pass = cred_of(cell(row, "V")) or (
+            prev.get("dst_pass") if dst_place == (prev.get("dst_place") or "") else ""
+        )
+        dst2_user = cred_of(cell(row, "Y")) or (
+            prev.get("dst2_user") if dst2_place == (prev.get("dst2_place") or "") else ""
+        )
+        dst2_pass = cred_of(cell(row, "Z")) or (
+            prev.get("dst2_pass") if dst2_place == (prev.get("dst2_place") or "") else ""
+        )
+        path_last[path_id] = {
+            "src_place": src_place, "src_ip": src_ip,
+            "src_user": src_user, "src_pass": src_pass,
+            "dst_place": dst_place, "dst_ip": dst_ip,
+            "dst_user": dst_user, "dst_pass": dst_pass,
+            "dst2_place": dst2_place, "dst2_ip": dst2_ip,
+            "dst2_user": dst2_user, "dst2_pass": dst2_pass,
+        }
         dests = []
-        if cell(row, "J"):
-            dests.append((cell(row, "J"), cell(row, "K"), dst_ip))
-        if cell(row, "M"):
-            dests.append((cell(row, "M"), cell(row, "N"), dst2_ip))
-        signal = content or qname
-        for dplace, dport, dip in dests:
-            dpl = norm_place(dplace)
-            if not dpl or not src_name:
-                continue
-            dst_name = add_dev(dip, dplace, "haivision", "decoder", hint=f"{qname}-DST")
-            if dst_name and dport:
-                add_port(dst_name, dport, "sdi_out")
-            flow = {
-                "signal": signal,
-                "label": qname,
-                "source_device": src_name,
-                "source_port": src_port,
-                "dest_city": CITY[dpl],
-                "dest_site": SITE[dpl],
-                "direction": "contribution",
-            }
-            if dst_name:
-                flow["dest_device"] = dst_name
-                if dport:
-                    flow["dest_port"] = dport
-            elif dport:
-                flow["dest_label"] = dport
-            flows.append(flow)
+        if dst_place:
+            dests.append((dst_place, cell(row, "K"), dst_ip, dst_user, dst_pass))
+        if dst2_place:
+            dests.append((dst2_place, cell(row, "N"), dst2_ip, dst2_user, dst2_pass))
+        hai_paths.append({
+            "qname": qname,
+            "path_id": path_id,
+            "content": cell(row, "F"),
+            "src_place": src_place,
+            "src_ip": src_ip,
+            "src_user": src_user,
+            "src_pass": src_pass,
+            "src_port": cell(row, "D") or "In 1",
+            "serial": cell(row, "E"),
+            "dests": dests,
+        })
+        tally_ip(src_ip, src_place, "haivision")
+        for dplace, _dport, dip, _u, _p in dests:
+            tally_ip(dip, dplace, "haivision")
 
     appear_ctrl: dict[str, tuple[str | None, str | None]] = {}
     for r in sorted(appear):
@@ -350,6 +438,46 @@ def build_inventory(xlsx: Path | None = None) -> dict:
         media = host_of(cell(row, "H"))
         if pl and (ctrl or media):
             appear_ctrl[pl] = (ctrl, media)
+            tally_ip(ctrl or media, cell(row, "C"), "appear")
+        chi_media = host_of(cell(row, "M"))
+        if chi_media:
+            tally_ip(chi_media, "CHI", "appear")
+
+    for rec in hai_paths:
+        src_name = add_dev(
+            rec["src_ip"], rec["src_place"], "haivision", "encoder",
+            rec["serial"], hint=rec["path_id"] or rec["qname"],
+        )
+        apply_creds(src_name, rec["src_user"], rec["src_pass"])
+        add_port(src_name, rec["src_port"], "sdi_in")
+        signal = rec["content"] or rec["qname"]
+        for dplace, dport, dip, duser, dpass in rec["dests"]:
+            dpl = norm_place(dplace)
+            if not dpl or not src_name:
+                continue
+            dst_name = add_dev(
+                dip, dplace, "haivision", "decoder",
+                hint=f"{rec['path_id'] or rec['qname']}-DST",
+            )
+            apply_creds(dst_name, duser, dpass)
+            if dst_name and dport:
+                add_port(dst_name, dport, "sdi_out")
+            flow = {
+                "signal": signal,
+                "label": rec["qname"],
+                "source_device": src_name,
+                "source_port": rec["src_port"],
+                "dest_city": CITY[dpl],
+                "dest_site": SITE[dpl],
+                "direction": "contribution",
+            }
+            if dst_name:
+                flow["dest_device"] = dst_name
+                if dport:
+                    flow["dest_port"] = dport
+            elif dport:
+                flow["dest_label"] = dport
+            flows.append(flow)
 
     for r in sorted(appear):
         if r == 1:
@@ -365,6 +493,7 @@ def build_inventory(xlsx: Path | None = None) -> dict:
         ctrl, media = appear_ctrl.get(src_pl, (host_of(cell(row, "I")), host_of(cell(row, "H"))))
         ip = ctrl or media
         src_name = add_dev(ip, src_place, "appear", "frame", hint=src_pl)
+        apply_creds(src_name, cell(row, "J"), cell(row, "K"))
         if src_name:
             # Re-find by walking devices — name is unique
             for d in devices.values():
@@ -393,6 +522,8 @@ def build_inventory(xlsx: Path | None = None) -> dict:
             if not dip and dpl == "CHI":
                 dip = host_of(cell(row, "M"))
             dst_name = add_dev(dip, dplace, "appear", "frame", hint=dpl)
+            if dpl == "CHI":
+                apply_creds(dst_name, cell(row, "N"), cell(row, "O"))
             if dst_name:
                 for d in devices.values():
                     if d["name"] == dst_name:
@@ -444,6 +575,11 @@ def build_inventory(xlsx: Path | None = None) -> dict:
 
     device_list = []
     for d in devices.values():
+        if collect_secrets is not None:
+            if d.get("api_username"):
+                collect_secrets[d["api_username_env"]] = d["api_username"]
+            if d.get("api_password"):
+                collect_secrets[d["api_password_env"]] = d["api_password"]
         row = {k: v for k, v in d.items() if not k.startswith("_")}
         device_list.append(row)
 
@@ -465,19 +601,19 @@ def build_inventory(xlsx: Path | None = None) -> dict:
         "_comment": (
             "Built from Example Docs/Newsnation Global Path Naming.xlsx (HAI + Appear tabs). "
             "Every path is included, including unused / PAC12 / missing-IP rows. "
-            "Devices without a management IP have empty mgmt_host and poll_enabled=false — "
-            "edit host and credentials in the portal. "
-            "Credential *values* are NOT in this file — set them in the Edit tab "
-            "or /etc/nexnoc/nexnoc.env. Do not copy passwords out of the spreadsheet."
+            "Devices without a management IP have empty mgmt_host and poll_enabled=false. "
+            "api_username / api_password on each device are the sheet values. "
         ),
     }
 
 
 def main() -> None:
-    config = build_inventory()
+    secrets: dict[str, str] = {}
+    config = build_inventory(collect_secrets=secrets)
     out = ROOT / "config.json"
     out.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     ensure_env_example(config["devices"])
+    secret_count = write_sheet_secrets(secrets)
     print(f"wrote {out}")
     print(
         f"cities={len(config['cities'])} sites={len(config['sites'])} "
@@ -491,6 +627,8 @@ def main() -> None:
             pending += 1
         print(f"  {d['name']:28} {d['vendor']:10} {d['site']:24} {host}")
     print(f"pending (no management IP): {pending}")
+    print(f"devices with credentials in config.json: {sum(1 for d in config['devices'] if d.get('api_username') or d.get('api_password'))}")
+    print(f"credential values also written to env file: {secret_count}")
 
 
 if __name__ == "__main__":

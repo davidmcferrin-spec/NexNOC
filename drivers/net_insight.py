@@ -35,7 +35,7 @@ from __future__ import annotations
 from typing import Optional
 
 from drivers.base import DiscoveryResult, Driver
-from drivers.snmp_util import snmp_ping
+from drivers.snmp_util import SnmpTarget, snmp_ping
 
 
 class NetInsightNimbraDriver(Driver):
@@ -45,12 +45,14 @@ class NetInsightNimbraDriver(Driver):
 
     def __init__(self, host: str, snmp_community: Optional[str] = None,
                  snmp_port: int = 161, snmp_timeout: float = 3.0,
-                 access_mode: str = "direct_snmp"):
+                 access_mode: str = "direct_snmp",
+                 snmp_target: Optional[SnmpTarget] = None):
         self.host = host
         self.snmp_community = snmp_community
         self.snmp_port = snmp_port
         self.snmp_timeout = snmp_timeout
         self.access_mode = access_mode
+        self.snmp_target = snmp_target
 
     def ping(self) -> bool:
         if self.access_mode != "direct_snmp":
@@ -58,10 +60,9 @@ class NetInsightNimbraDriver(Driver):
                 "NetInsightNimbraDriver access_mode 'via_nms' has no client implementation yet - "
                 "Nimbra Vision's northbound REST API reference isn't confirmed. See module docstring."
             )
+        if self.snmp_target is not None:
+            return snmp_ping(self.snmp_target.host, target=self.snmp_target)
         if not self.snmp_community:
-            # No community string configured - can't even attempt SNMP.
-            # Fail closed (unreachable) rather than raising, matching the
-            # ping() contract other drivers follow.
             return False
         return snmp_ping(self.host, self.snmp_community, port=self.snmp_port, timeout=self.snmp_timeout)
 

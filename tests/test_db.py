@@ -321,6 +321,41 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(device.mgmt_host, "10.1.2.3")
         self.assertTrue(device.poll_enabled)
 
+    def test_duplicate_mgmt_host_rejected(self):
+        site_id = self.db.add_site("Chicago")
+        self.db.add_device(
+            site_id=site_id, name="CHI-X20-1", vendor="appear", mgmt_host="10.0.1.10",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            self.db.add_device(
+                site_id=site_id, name="CHI-X20-2", vendor="appear", mgmt_host="10.0.1.10",
+            )
+        self.assertIn("10.0.1.10", str(ctx.exception))
+
+    def test_empty_mgmt_host_allowed_many_times(self):
+        site_id = self.db.add_site("Atlanta - CW")
+        a = self.db.add_device(
+            site_id=site_id, name="ATL-HAI-A", vendor="haivision",
+            mgmt_host="", poll_enabled=False,
+        )
+        b = self.db.add_device(
+            site_id=site_id, name="ATL-HAI-B", vendor="haivision",
+            mgmt_host="", poll_enabled=False,
+        )
+        self.assertNotEqual(a, b)
+        self.assertEqual(self.db.get_device(a).mgmt_host, "")
+        self.assertEqual(self.db.get_device(b).mgmt_host, "")
+
+    def test_snmp_enabled_defaults_from_community(self):
+        site_id = self.db.add_site("Chicago")
+        device_id = self.db.add_device(
+            site_id=site_id, name="CHI-X20-1", vendor="appear", mgmt_host="10.0.1.10",
+            snmp_community_env="CHI_X20_1_SNMP",
+        )
+        device = self.db.get_device(device_id)
+        self.assertTrue(device.snmp_enabled)
+        self.assertEqual(device.snmp_version, "2c")
+
 
 if __name__ == "__main__":
     unittest.main()

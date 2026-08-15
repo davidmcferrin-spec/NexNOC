@@ -38,6 +38,7 @@ VALID_DEVICE_STATUSES = {"unknown", "healthy", "degraded", "unreachable", "decom
 VALID_SIGNAL_STATUSES = {"unknown", "up", "degraded", "down"}
 VALID_PORT_KINDS = {"sdi_in", "sdi_out", "net", "mgmt", "other"}
 VALID_FLOW_STATUSES = VALID_SIGNAL_STATUSES
+VALID_SNMP_VERSIONS = {"1", "2c", "3"}
 
 
 def utcnow_iso() -> str:
@@ -71,6 +72,15 @@ class Device:
     snmp_host: Optional[str]
     snmp_port: int
     snmp_community_env: Optional[str]
+    snmp_version: str
+    snmp_enabled: bool
+    snmp_trap_enabled: bool
+    snmp_v3_user_env: Optional[str]
+    snmp_v3_sec_level: Optional[str]
+    snmp_v3_auth_proto: Optional[str]
+    snmp_v3_auth_pass_env: Optional[str]
+    snmp_v3_priv_proto: Optional[str]
+    snmp_v3_priv_pass_env: Optional[str]
     nms_host: Optional[str]
     nms_port: Optional[int]
     nms_api_key_env: Optional[str]
@@ -82,6 +92,11 @@ class Device:
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Device":
+        keys = set(row.keys())
+
+        def col(name, default=None):
+            return row[name] if name in keys else default
+
         return cls(
             id=row["id"],
             site_id=row["site_id"],
@@ -102,6 +117,15 @@ class Device:
             snmp_host=row["snmp_host"],
             snmp_port=row["snmp_port"],
             snmp_community_env=row["snmp_community_env"],
+            snmp_version=col("snmp_version") or "2c",
+            snmp_enabled=bool(col("snmp_enabled", 0)),
+            snmp_trap_enabled=bool(col("snmp_trap_enabled", 1)),
+            snmp_v3_user_env=col("snmp_v3_user_env"),
+            snmp_v3_sec_level=col("snmp_v3_sec_level") or "authPriv",
+            snmp_v3_auth_proto=col("snmp_v3_auth_proto") or "SHA",
+            snmp_v3_auth_pass_env=col("snmp_v3_auth_pass_env"),
+            snmp_v3_priv_proto=col("snmp_v3_priv_proto") or "AES",
+            snmp_v3_priv_pass_env=col("snmp_v3_priv_pass_env"),
             nms_host=row["nms_host"],
             nms_port=row["nms_port"],
             nms_api_key_env=row["nms_api_key_env"],
@@ -150,12 +174,32 @@ class Database:
                 ("origin_device_id", "INTEGER REFERENCES devices(id)"),
                 ("origin_port_id", "INTEGER REFERENCES ports(id)"),
             ],
+            "devices": [
+                ("snmp_version", "TEXT DEFAULT '2c'"),
+                ("snmp_enabled", "INTEGER NOT NULL DEFAULT 0"),
+                ("snmp_trap_enabled", "INTEGER NOT NULL DEFAULT 1"),
+                ("snmp_v3_user_env", "TEXT"),
+                ("snmp_v3_sec_level", "TEXT DEFAULT 'authPriv'"),
+                ("snmp_v3_auth_proto", "TEXT DEFAULT 'SHA'"),
+                ("snmp_v3_auth_pass_env", "TEXT"),
+                ("snmp_v3_priv_proto", "TEXT DEFAULT 'AES'"),
+                ("snmp_v3_priv_pass_env", "TEXT"),
+            ],
         }
         for table, columns in extras.items():
             existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
             for name, decl in columns:
                 if name not in existing:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_mgmt_host "
+                "ON devices(mgmt_host) WHERE mgmt_host != ''"
+            )
+        except sqlite3.IntegrityError:
+            logger.warning(
+                "duplicate management IPs exist; unique index not applied"
+            )
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -277,6 +321,38 @@ class Database:
             cur = conn.execute("DELETE FROM sites WHERE id = ?", (site_id,))
             return cur.rowcount > 0
 
+    def merge_sites(self, source_id: int, target_id: int) -> None:
+        """Move devices/flows/trunks from source onto target, then delete source."""
+        if source_id == target_id:
+            return
+        if self.get_site(source_id) is None or self.get_site(target_id) is None:
+            raise ValueError("both sites must exist to merge")
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE devices SET site_id = ?, updated_at = ? WHERE site_id = ?",
+                (target_id, utcnow_iso(), source_id),
+            )
+            conn.execute(
+                "UPDATE flows SET dest_site_id = ? WHERE dest_site_id = ?",
+                (target_id, source_id),
+            )
+            trunks = conn.execute(
+                "SELECT id, site_a_id, site_b_id FROM trunks "
+                "WHERE site_a_id = ? OR site_b_id = ?",
+                (source_id, source_id),
+            ).fetchall()
+            for trunk in trunks:
+                site_a = target_id if trunk["site_a_id"] == source_id else trunk["site_a_id"]
+                site_b = target_id if trunk["site_b_id"] == source_id else trunk["site_b_id"]
+                if site_a == site_b:
+                    conn.execute("DELETE FROM trunks WHERE id = ?", (trunk["id"],))
+                    continue
+                conn.execute(
+                    "UPDATE trunks SET site_a_id = ?, site_b_id = ? WHERE id = ?",
+                    (site_a, site_b, trunk["id"]),
+                )
+            conn.execute("DELETE FROM sites WHERE id = ?", (source_id,))
+
     # ------------------------------------------------------------------
     # Devices
     # ------------------------------------------------------------------
@@ -304,33 +380,59 @@ class Database:
         nms_api_key_env: Optional[str] = None,
         nms_device_ref: Optional[str] = None,
         poll_enabled: bool = True,
+        snmp_version: str = "2c",
+        snmp_enabled: Optional[bool] = None,
+        snmp_trap_enabled: bool = True,
+        snmp_v3_user_env: Optional[str] = None,
+        snmp_v3_sec_level: str = "authPriv",
+        snmp_v3_auth_proto: str = "SHA",
+        snmp_v3_auth_pass_env: Optional[str] = None,
+        snmp_v3_priv_proto: str = "AES",
+        snmp_v3_priv_pass_env: Optional[str] = None,
     ) -> int:
         if vendor not in VALID_VENDORS:
             raise ValueError(f"unknown vendor {vendor!r}, must be one of {sorted(VALID_VENDORS)}")
         if access_mode not in VALID_ACCESS_MODES:
             raise ValueError(f"invalid access_mode {access_mode!r}, must be one of {sorted(VALID_ACCESS_MODES)}")
-        host = mgmt_host if mgmt_host is not None else ""
+        if snmp_version not in VALID_SNMP_VERSIONS:
+            raise ValueError(f"invalid snmp_version {snmp_version!r}")
+        host = (mgmt_host or "").strip()
+        if snmp_enabled is None:
+            snmp_enabled = access_mode == "direct_snmp" or bool(snmp_community_env or snmp_v3_user_env)
+        self._require_unique_mgmt_host(host)
+        snmp = (snmp_host if snmp_host is not None else host) or ""
+        if snmp.strip() and snmp.strip() != host:
+            self._require_unique_mgmt_host(snmp.strip())
         with self.connect() as conn:
-            cur = conn.execute(
-                """
-                INSERT INTO devices (
-                    site_id, name, vendor, device_role, model, firmware_version, mgmt_host,
-                    access_mode, driver_override,
-                    api_port, api_scheme, api_verify_tls, api_username_env, api_password_env,
-                    snmp_host, snmp_port, snmp_community_env,
-                    nms_host, nms_port, nms_api_key_env, nms_device_ref,
-                    poll_enabled
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    site_id, name, vendor, device_role, model, firmware_version, host,
-                    access_mode, driver_override,
-                    api_port, api_scheme, int(api_verify_tls), api_username_env, api_password_env,
-                    snmp_host if snmp_host is not None else host, snmp_port, snmp_community_env,
-                    nms_host, nms_port, nms_api_key_env, nms_device_ref,
-                    int(poll_enabled),
-                ),
-            )
+            try:
+                cur = conn.execute(
+                    """
+                    INSERT INTO devices (
+                        site_id, name, vendor, device_role, model, firmware_version, mgmt_host,
+                        access_mode, driver_override,
+                        api_port, api_scheme, api_verify_tls, api_username_env, api_password_env,
+                        snmp_host, snmp_port, snmp_community_env, snmp_version,
+                        snmp_enabled, snmp_trap_enabled,
+                        snmp_v3_user_env, snmp_v3_sec_level, snmp_v3_auth_proto, snmp_v3_auth_pass_env,
+                        snmp_v3_priv_proto, snmp_v3_priv_pass_env,
+                        nms_host, nms_port, nms_api_key_env, nms_device_ref,
+                        poll_enabled
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        site_id, name, vendor, device_role, model, firmware_version, host,
+                        access_mode, driver_override,
+                        api_port, api_scheme, int(api_verify_tls), api_username_env, api_password_env,
+                        snmp_host if snmp_host is not None else host, snmp_port, snmp_community_env,
+                        snmp_version, int(snmp_enabled), int(snmp_trap_enabled),
+                        snmp_v3_user_env, snmp_v3_sec_level, snmp_v3_auth_proto, snmp_v3_auth_pass_env,
+                        snmp_v3_priv_proto, snmp_v3_priv_pass_env,
+                        nms_host, nms_port, nms_api_key_env, nms_device_ref,
+                        int(poll_enabled),
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(f"cannot add device: {exc}") from exc
             return cur.lastrowid
 
     def remove_device(self, device_id: int) -> None:
@@ -346,11 +448,14 @@ class Database:
             "mgmt_host", "access_mode", "driver_override",
             "api_port", "api_scheme", "api_verify_tls",
             "api_username_env", "api_password_env",
-            "snmp_host", "snmp_port", "snmp_community_env",
+            "snmp_host", "snmp_port", "snmp_community_env", "snmp_version",
+            "snmp_enabled", "snmp_trap_enabled",
+            "snmp_v3_user_env", "snmp_v3_sec_level", "snmp_v3_auth_proto",
+            "snmp_v3_auth_pass_env", "snmp_v3_priv_proto", "snmp_v3_priv_pass_env",
             "nms_host", "nms_port", "nms_api_key_env", "nms_device_ref",
             "poll_enabled",
         }
-        bools = {"api_verify_tls", "poll_enabled"}
+        bools = {"api_verify_tls", "poll_enabled", "snmp_enabled", "snmp_trap_enabled"}
         sets, params = ["updated_at = ?"], [utcnow_iso()]
         if "vendor" in fields and fields["vendor"] not in VALID_VENDORS:
             raise ValueError(
@@ -360,6 +465,17 @@ class Database:
             raise ValueError(
                 f"invalid access_mode {fields['access_mode']!r}, "
                 f"must be one of {sorted(VALID_ACCESS_MODES)}"
+            )
+        if "snmp_version" in fields and fields["snmp_version"] not in VALID_SNMP_VERSIONS:
+            raise ValueError(f"invalid snmp_version {fields['snmp_version']!r}")
+        if "mgmt_host" in fields:
+            self._require_unique_mgmt_host(
+                (fields["mgmt_host"] or "").strip(), exclude_id=device_id,
+            )
+            fields["mgmt_host"] = (fields["mgmt_host"] or "").strip()
+        if "snmp_host" in fields and (fields["snmp_host"] or "").strip():
+            self._require_unique_mgmt_host(
+                (fields["snmp_host"] or "").strip(), exclude_id=device_id,
             )
         for key, value in fields.items():
             if key not in allowed:
@@ -391,6 +507,59 @@ class Database:
         with self.connect() as conn:
             row = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
             return Device.from_row(row) if row else None
+
+    def find_device_by_mgmt_host(self, host: str, exclude_id: Optional[int] = None) -> Optional[Device]:
+        host = (host or "").strip()
+        if not host:
+            return None
+        with self.connect() as conn:
+            if exclude_id is None:
+                row = conn.execute(
+                    "SELECT * FROM devices WHERE mgmt_host = ? OR snmp_host = ?",
+                    (host, host),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT * FROM devices WHERE (mgmt_host = ? OR snmp_host = ?) AND id != ?",
+                    (host, host, exclude_id),
+                ).fetchone()
+            return Device.from_row(row) if row else None
+
+    def _require_unique_mgmt_host(self, host: str, exclude_id: Optional[int] = None) -> None:
+        host = (host or "").strip()
+        if not host:
+            return
+        other = self.find_device_by_mgmt_host(host, exclude_id=exclude_id)
+        if other is not None:
+            raise ValueError(
+                f"management IP {host} is already used by device {other.name!r}"
+            )
+
+    def add_trap(self, source_ip: str, version: Optional[str] = None,
+                 trap_oid: Optional[str] = None, generic_trap: Optional[int] = None,
+                 varbinds_json: str = "[]", device_id: Optional[int] = None,
+                 matched: bool = False) -> int:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO trap_log (
+                    device_id, source_ip, version, trap_oid, generic_trap, varbinds_json, matched
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (device_id, source_ip, version, trap_oid, generic_trap, varbinds_json, int(matched)),
+            )
+            return cur.lastrowid
+
+    def list_traps(self, device_id: Optional[int] = None, limit: int = 50) -> list[sqlite3.Row]:
+        with self.connect() as conn:
+            if device_id is None:
+                return conn.execute(
+                    "SELECT * FROM trap_log ORDER BY id DESC LIMIT ?", (limit,)
+                ).fetchall()
+            return conn.execute(
+                "SELECT * FROM trap_log WHERE device_id = ? ORDER BY id DESC LIMIT ?",
+                (device_id, limit),
+            ).fetchall()
 
     def set_device_status(self, device_id: int, status: str, error: Optional[str] = None) -> None:
         if status not in VALID_DEVICE_STATUSES:

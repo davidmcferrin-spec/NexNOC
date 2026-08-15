@@ -150,9 +150,14 @@ per device. A device flips to `unreachable` only after 3 consecutive
 missed polls (`CONSECUTIVE_FAILURES_THRESHOLD` in poller.py) — avoids
 status-flapping on a single dropped packet.
 
-Production uses `nexnoc-poller.service` / `nexnoc-web.service` from
-`setup.sh`, with credentials in `/etc/nexnoc/nexnoc.env`
-(`EnvironmentFile=`, mode 0640).
+Production uses `nexnoc-poller.service` / `nexnoc-web.service` /
+`nexnoc-trapd.service` from `setup.sh`, with credentials in
+`/etc/nexnoc/nexnoc.env` (`EnvironmentFile=`, mode 0640). SNMP GET
+(v1/v2c/v3) runs alongside the vendor API when a device has SNMP
+enabled. Traps (v1/v2c) land on UDP 162 via `nexnoc-trapd`; SNMPv3
+traps can be handed off from `snmptrapd` — see
+`config/snmptrapd.nexnoc.conf`. Management IPs must be unique (empty
+host is allowed many times for pending boxes).
 
 ### Run the dashboard
 
@@ -245,7 +250,8 @@ Appear/Haivision/Net Insight ones.
 | `scripts/fetch_tiles.py` | Build a local CONUS XYZ tile pack for air-gapped / production use |
 | `config.example.json` | Template multi-vendor inventory config (includes example trunks/signals) |
 | `setup.sh` | Debian/Ubuntu installer: apt, systemd, Apache reverse-proxy, SQLite bootstrap |
-| `systemd/` | `nexnoc-poller.service` + `nexnoc-web.service` |
+| `systemd/` | `nexnoc-poller.service` + `nexnoc-web.service` + `nexnoc-trapd.service` |
+| `trapd.py` | SNMPv1/v2c UDP trap listener (v3 via snmptrapd traphandle) |
 | `config/apache-nexnoc.conf` | Apache vhost template (proxies to loopback) |
 | `config/nexnoc.env.example` | Credential env template (copied to `/etc/nexnoc/nexnoc.env`) |
 | `tests/` | Unit tests (no network) |

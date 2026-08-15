@@ -19,6 +19,7 @@ class TestPackaging(unittest.TestCase):
         self.assertTrue(text.startswith("#!/usr/bin/env bash"))
         self.assertIn("nexnoc-poller", text)
         self.assertIn("nexnoc-web", text)
+        self.assertIn("nexnoc-trapd", text)
         self.assertIn("apache2", text)
         self.assertIn("sqlite3", text)
         self.assertNotIn("pip install", text)
@@ -26,14 +27,20 @@ class TestPackaging(unittest.TestCase):
     def test_systemd_units_bind_loopback_and_use_env_file(self):
         poller = _read("systemd/nexnoc-poller.service")
         web = _read("systemd/nexnoc-web.service")
+        trapd = _read("systemd/nexnoc-trapd.service")
         self.assertIn("EnvironmentFile=-/etc/nexnoc/nexnoc.env", poller)
         self.assertIn("EnvironmentFile=-/etc/nexnoc/nexnoc.env", web)
+        self.assertIn("EnvironmentFile=-/etc/nexnoc/nexnoc.env", trapd)
         self.assertIn("User=nexnoc", poller)
         self.assertIn("User=nexnoc", web)
+        self.assertIn("User=nexnoc", trapd)
         self.assertIn("--db /var/lib/nexnoc/noc.db", poller)
+        self.assertIn("--db /var/lib/nexnoc/noc.db", trapd)
         self.assertIn("--host 127.0.0.1", web)
         self.assertIn("--port 8080", web)
         self.assertNotIn("0.0.0.0", web)
+        self.assertIn("CAP_NET_BIND_SERVICE", trapd)
+        self.assertIn("--port 162", trapd)
 
     def test_apache_template_proxies_to_loopback(self):
         conf = _read("config/apache-nexnoc.conf")

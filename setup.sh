@@ -151,6 +151,9 @@ sync_code() {
     --exclude '.env' \
     --exclude 'tiles' \
     "${ROOT}/" "${PREFIX}/"
+  if [[ -f "${PREFIX}/scripts/nexnoc-traphandle" ]]; then
+    chmod 755 "${PREFIX}/scripts/nexnoc-traphandle"
+  fi
   ok "rsync ${ROOT} → ${PREFIX}"
 }
 
@@ -196,7 +199,7 @@ substitute_paths() {
 install_units() {
   step "systemd units"
   local unit
-  for unit in nexnoc-poller.service nexnoc-web.service; do
+  for unit in nexnoc-poller.service nexnoc-web.service nexnoc-trapd.service; do
     [[ -f "${PREFIX}/systemd/${unit}" ]] || fail "missing ${PREFIX}/systemd/${unit}"
     substitute_paths "${PREFIX}/systemd/${unit}" "/etc/systemd/system/${unit}"
     chmod 644 "/etc/systemd/system/${unit}"
@@ -257,7 +260,7 @@ bootstrap_db() {
 
 start_services() {
   step "Enable services"
-  systemctl enable --now nexnoc-web nexnoc-poller
+  systemctl enable --now nexnoc-web nexnoc-poller nexnoc-trapd
   sleep 1
   if systemctl is-active --quiet nexnoc-web; then
     ok "nexnoc-web is active"
@@ -269,13 +272,18 @@ start_services() {
   else
     warn "nexnoc-poller failed to start — journalctl -u nexnoc-poller"
   fi
+  if systemctl is-active --quiet nexnoc-trapd; then
+    ok "nexnoc-trapd is active"
+  else
+    warn "nexnoc-trapd failed to start — journalctl -u nexnoc-trapd (UDP 162 / CAP_NET_BIND_SERVICE)"
+  fi
 }
 
 restart_running() {
   step "Restart units"
   systemctl daemon-reload
   local unit
-  for unit in nexnoc-web nexnoc-poller; do
+  for unit in nexnoc-web nexnoc-poller nexnoc-trapd; do
     if ! systemctl cat "${unit}" >/dev/null 2>&1; then
       warn "${unit} is not installed — run sudo $0 (full install)"
       continue
@@ -313,7 +321,7 @@ cmd_check() {
     || warn "missing ${DATA}/noc.db — bootstrap has not run"
 
   if command -v systemctl >/dev/null 2>&1; then
-    for unit in nexnoc-web nexnoc-poller apache2; do
+    for unit in nexnoc-web nexnoc-poller nexnoc-trapd apache2; do
       if systemctl is-active --quiet "${unit}" 2>/dev/null; then
         ok "${unit} active"
       else
@@ -355,7 +363,7 @@ cmd_check() {
 }
 
 cmd_status() {
-  systemctl status --no-pager --lines=8 nexnoc-web nexnoc-poller apache2 || true
+  systemctl status --no-pager --lines=8 nexnoc-web nexnoc-poller nexnoc-trapd apache2 || true
 }
 
 print_summary() {
@@ -385,7 +393,7 @@ Maintenance:
   sudo $0 update
   sudo $0 --check
   sudo $0 status
-  journalctl -u nexnoc-poller -u nexnoc-web -f
+  journalctl -u nexnoc-poller -u nexnoc-web -u nexnoc-trapd -f
 
 SQLite only — MySQL is not supported. Dashboard has no auth gate; keep
 Apache on the management LAN (or add TLS + a reverse-proxy auth layer).

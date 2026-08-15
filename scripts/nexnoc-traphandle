@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# snmptrapd traphandle → NexNOC (SNMPv3 traps). See config/snmptrapd.nexnoc.conf.
+exec /usr/bin/python3 /opt/nexnoc/trapd.py --db /var/lib/nexnoc/noc.db --from-snmptrapd

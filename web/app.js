@@ -27,9 +27,14 @@
   let overlay = null;
   let didFit = false;
   let lastTileUrl = "";
-  let editKind = "devices";
-  let editId = null;
   let editDirty = false;
+  let newSiteCityId = null;
+  let selectedDeviceId = null;
+  let selectedFlowId = null;
+  let creatingDevice = false;
+  let creatingFlow = false;
+  let mapEdit = null;
+  let portReturnDeviceId = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -49,7 +54,44 @@
     return d.toLocaleString();
   }
 
+  function confirmLeaveForm() {
+    if (!editDirty) return true;
+    return window.confirm("Discard unsaved changes?");
+  }
+
+  function openSiteEditor(siteId, cityId) {
+    if (KIOSK) return;
+    if (!confirmLeaveForm()) return;
+    newSiteCityId = siteId ? null : cityId;
+    mapEdit = { kind: "sites", id: siteId || null };
+    editDirty = false;
+    fillMapEditor();
+  }
+
+  function openCityEditor(cityId) {
+    if (KIOSK) return;
+    if (!confirmLeaveForm()) return;
+    mapEdit = { kind: "cities", id: cityId || null };
+    editDirty = false;
+    fillMapEditor();
+  }
+
+  async function deleteCitySite(siteId) {
+    const site = (state.sites || []).find((s) => s.id === siteId);
+    const label = site ? site.name : "this site";
+    if (!window.confirm(`Delete ${label}? Devices at the site must be moved or deleted first.`)) return;
+    try {
+      await apiSend("DELETE", `/api/sites/${siteId}`);
+      await refresh();
+    } catch (err) {
+      window.alert(err.message);
+    }
+  }
+
   function setView(name) {
+    if (name === "edit") name = "inventory";
+    if (name !== currentView && !confirmLeaveForm()) return;
+    if (name !== currentView) editDirty = false;
     currentView = name;
     document.querySelectorAll(".view").forEach((el) => {
       el.classList.toggle("active", el.id === `view-${name}`);
@@ -61,7 +103,6 @@
     if (name === "map" && leafletMap) {
       setTimeout(() => leafletMap.invalidateSize(), 0);
     }
-    if (name === "edit") renderEditor(false);
   }
 
   function renderSummary(s) {
@@ -168,7 +209,11 @@
 
   function renderMap() {
     if (!ensureMap()) {
-      renderMapPanel();
+      if (mapEdit && !KIOSK) {
+        if (!editDirty) fillMapEditor();
+      } else {
+        renderMapPanel();
+      }
       return;
     }
     fitOnce();
@@ -247,10 +292,21 @@
       });
     }
 
+    if (mapEdit && !KIOSK) {
+      if (!editDirty) fillMapEditor();
+      else $("view-map")?.querySelector(".map-wrap")?.classList.add("with-form");
+      return;
+    }
+    $("view-map")?.querySelector(".map-wrap")?.classList.remove("with-form");
     renderMapPanel();
   }
 
   function select(type, id) {
+    if (mapEdit) {
+      if (!confirmLeaveForm()) return;
+      mapEdit = null;
+      editDirty = false;
+    }
     if (id == null || type == null) selected = { type: null, id: null };
     else if (type === "site") selected = { type, id: Number(id) };
     else selected = { type, id: String(id) };
@@ -299,6 +355,9 @@
     const panel = $("map-panel");
     if (!selected.type) {
       let html = `<p class="muted">Click a city or a trunk. One pipe per city pair — thickness is path count, color is worst status. Click a trunk to see every path on it.</p>`;
+      if (!KIOSK) {
+        html += `<p class="form-actions"><button type="button" class="btn" id="map-add-city">Add city</button></p>`;
+      }
       if (KIOSK) {
         const bad = (state.flows || []).filter((f) =>
           f.effective_status === "down" || f.effective_status === "degraded"
@@ -310,6 +369,8 @@
           : `<p class="muted">No degraded or down flows.</p>`);
       }
       panel.innerHTML = html;
+      const addCity = $("map-add-city");
+      if (addCity) addCity.addEventListener("click", () => openCityEditor(null));
       return;
     }
     if (selected.type === "city") {
@@ -320,18 +381,26 @@
         h.city_a_id === city.id || h.city_b_id === city.id
         || h.source_city_id === city.id || h.dest_city_id === city.id
       );
+      const cityDb = cityDbId(city);
       panel.innerHTML = `
         <h2>${escapeHtml(city.name)}</h2>
         <p class="muted">${city.site_count} site${city.site_count === 1 ? "" : "s"} · ${city.device_count} device${city.device_count === 1 ? "" : "s"}</p>
         <p>${badge(city.status)}</p>
+        ${KIOSK ? "" : `<p class="form-actions"><button type="button" class="btn" id="city-edit">Edit city</button>
+          <button type="button" class="btn" id="city-add-site">Add site</button></p>`}
         <h3>Sites</h3>
+        <p class="muted">Each site is a building in this city.</p>
         ${sites.length ? sites.map((site) => {
           const devices = state.devices.filter((d) => d.site_id === site.id);
-          return `<h3>${escapeHtml(site.name)}</h3>
+          const actions = KIOSK ? "" : `<div class="site-actions">
+            <button type="button" class="btn" data-edit-site="${site.id}">Edit</button>
+            <button type="button" class="btn danger" data-del-site="${site.id}">Delete</button>
+          </div>`;
+          return `<div class="site-head"><h3>${escapeHtml(site.name)}</h3>${actions}</div>
             ${devices.length ? `<ul class="row-list">${devices.map((d) => {
               const lines = deviceFlowLines(d.id);
               const extra = [...lines.inputHtml, ...lines.outputHtml].join("<br>");
-              return `<li><span>${escapeHtml(d.name)}<br><span class="muted">${escapeHtml(d.vendor)} ${escapeHtml(d.model || "")}${extra ? `<br>${extra}` : ""}</span></span>${badge(d.status)}</li>`;
+              return `<li><span>${escapeHtml(d.name)}<br><span class="muted">${escapeHtml(d.mgmt_host || "no management IP")} · ${escapeHtml(d.vendor)} ${escapeHtml(d.model || "")}${extra ? `<br>${extra}` : ""}</span></span>${badge(d.status)}</li>`;
             }).join("")}</ul>` : `<p class="muted">No devices at this site.</p>`}`;
         }).join("") : `<p class="muted">No sites in this city.</p>`}
         <h3>Trunks</h3>
@@ -341,6 +410,16 @@
       `;
       panel.querySelectorAll("[data-hop]").forEach((btn) => {
         btn.addEventListener("click", () => select("hop", btn.dataset.hop));
+      });
+      const addSite = $("city-add-site");
+      if (addSite) addSite.addEventListener("click", () => openSiteEditor(null, cityDb));
+      const editCity = $("city-edit");
+      if (editCity) editCity.addEventListener("click", () => openCityEditor(cityDb));
+      panel.querySelectorAll("[data-edit-site]").forEach((btn) => {
+        btn.addEventListener("click", () => openSiteEditor(Number(btn.dataset.editSite), cityDb));
+      });
+      panel.querySelectorAll("[data-del-site]").forEach((btn) => {
+        btn.addEventListener("click", () => deleteCitySite(Number(btn.dataset.delSite)));
       });
       return;
     }
@@ -447,8 +526,10 @@
       }
       return true;
     });
-    $("links-body").innerHTML = rows.map((f) => `
-      <tr>
+    $("links-body").innerHTML = rows.map((f) => {
+      const sel = Number(selectedFlowId) === Number(f.id) && !creatingFlow ? " sel" : "";
+      return `
+      <tr class="${sel}" data-id="${f.id}">
         <td>${badge(f.effective_status)}</td>
         <td>${escapeHtml(f.signal_label || "—")}</td>
         <td>${escapeHtml(f.source_port_name || "—")}</td>
@@ -460,77 +541,125 @@
         <td>${escapeHtml(f.dest_device_name || "—")}</td>
         <td>${escapeHtml(f.origin_device_name || "—")}</td>
         <td>${escapeHtml(f.direction || "—")}</td>
-      </tr>
-    `).join("");
+      </tr>`;
+    }).join("");
     $("links-empty").hidden = rows.length > 0;
+    $("links-body").querySelectorAll("tr").forEach((tr) => {
+      tr.addEventListener("click", () => {
+        if (!confirmLeaveForm()) return;
+        creatingFlow = false;
+        selectedFlowId = Number(tr.dataset.id);
+        editDirty = false;
+        showFlowEditor(selectedFlowId);
+      });
+    });
   }
 
   function renderInventory() {
-    const rows = state.devices;
-    $("inv-body").innerHTML = rows.map((d) => `
-      <tr data-device="${d.id}">
+    const q = ($("inv-search")?.value || "").trim().toLowerCase();
+    const rows = (state.devices || []).filter((d) => {
+      if (!q) return true;
+      return `${d.name} ${d.site_name} ${d.vendor} ${d.mgmt_host || ""} ${d.model || ""}`.toLowerCase().includes(q);
+    });
+    $("inv-body").innerHTML = rows.map((d) => {
+      const sel = Number(selectedDeviceId) === Number(d.id) && !creatingDevice ? " sel" : "";
+      return `
+      <tr class="${sel}" data-device="${d.id}">
         <td>${badge(d.status)}</td>
         <td>${escapeHtml(d.name)}</td>
         <td>${escapeHtml(d.site_name)}</td>
         <td>${escapeHtml(d.vendor)}</td>
         <td>${escapeHtml(d.model || "—")}</td>
-        <td>${escapeHtml(d.device_role || "—")}</td>
         <td>${escapeHtml(d.mgmt_host || "—")}</td>
         <td>${escapeHtml(d.resolved_driver || d.driver_override || "—")}</td>
         <td>${escapeHtml(fmtTime(d.last_seen_at))}</td>
-      </tr>
-    `).join("");
+      </tr>`;
+    }).join("");
     $("inv-empty").hidden = rows.length > 0;
     $("inv-body").querySelectorAll("tr").forEach((tr) => {
       tr.addEventListener("click", () => {
-        $("inv-body").querySelectorAll("tr").forEach((r) => r.classList.remove("sel"));
-        tr.classList.add("sel");
-        loadDevice(Number(tr.dataset.device));
+        if (!confirmLeaveForm()) return;
+        creatingDevice = false;
+        portReturnDeviceId = null;
+        selectedDeviceId = Number(tr.dataset.device);
+        editDirty = false;
+        showDevice(selectedDeviceId);
       });
     });
   }
 
-  async function loadDevice(id) {
+  async function showDevice(id) {
     const panel = $("inv-panel");
+    if (!panel) return;
+    const listed = (state.devices || []).find((x) => x.id === id);
+    if (!listed) {
+      panel.innerHTML = `<p class="muted">Device not found.</p>`;
+      return;
+    }
     panel.innerHTML = `<p class="muted">Loading…</p>`;
+    let detail = { recent_polls: [], modules: [], ports: [], flows: [], device: listed };
     try {
       const res = await fetch(`/api/devices/${id}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const d = data.device;
-      const polls = data.recent_polls || [];
-      const modules = data.modules || [];
-      const ports = data.ports || [];
-      const flows = data.flows || [];
-      const pathItem = (f) => {
-        const origin = f.origin_device_name
-          ? `<br><span class="muted">origin ${escapeHtml(f.origin_city_name || f.origin_device_name)} ${escapeHtml(f.origin_port_name || "")}</span>`
-          : "";
-        return `<li><span>${escapeHtml(f.signal_label || f.source_port_name || f.label)} → ${escapeHtml(destLine(f))}<br><span class="muted">${escapeHtml(f.source_device_name)}${f.dest_device_name ? ` · ${escapeHtml(f.dest_device_name)}` : ""} · ${escapeHtml(f.direction || "")}</span>${origin}</span>${badge(f.effective_status)}</li>`;
-      };
-      const originating = flows.filter((f) => f.source_device_id === d.id && !isOutputFlow(f));
-      const leaving = flows.filter((f) => f.source_device_id === d.id && isOutputFlow(f));
-      const landing = flows.filter((f) => f.dest_device_id === d.id);
-      const through = flows.filter((f) =>
-        f.origin_device_id === d.id && f.source_device_id !== d.id
-      );
-      const pathList = (rows, empty) => rows.length
-        ? `<ul class="row-list">${rows.map(pathItem).join("")}</ul>`
-        : `<p class="muted">${empty}</p>`;
-      panel.innerHTML = `
-        <h2>${escapeHtml(d.name)}</h2>
-        <p class="muted">${escapeHtml(d.city_name || "")}${d.city_name && d.site_name ? " · " : ""}${escapeHtml(d.site_name)} · ${escapeHtml(d.mgmt_host || "no management IP")}</p>
+      detail = await res.json();
+    } catch (err) {
+      panel.innerHTML = `<p class="muted">Could not load device: ${escapeHtml(err.message)}</p>`;
+      return;
+    }
+    if (selectedDeviceId !== id || creatingDevice) return;
+    const d = { ...listed, ...(detail.device || {}) };
+    panel.innerHTML = deviceForm(d) + deviceHealthHtml(d, detail);
+    bindEditorForm(panel, "devices", {
+      getId: () => selectedDeviceId,
+      setId: (value) => { selectedDeviceId = value; creatingDevice = false; },
+      onSaved: async () => {
+        await refresh();
+        if (selectedDeviceId) showDevice(selectedDeviceId);
+      },
+      onDeleted: async () => {
+        selectedDeviceId = null;
+        creatingDevice = false;
+        await refresh();
+        panel.innerHTML = `<p class="muted">Click a device to edit it. Host and credentials can be filled in later.</p>`;
+      },
+      onCancel: () => {
+        editDirty = false;
+        showDevice(id);
+      },
+    });
+    bindDevicePortActions(d.id, detail.ports || []);
+  }
+
+  function deviceHealthHtml(d, data) {
+    const polls = data.recent_polls || [];
+    const modules = data.modules || [];
+    const ports = data.ports || [];
+    const flows = data.flows || [];
+    const pathItem = (f) => {
+      const origin = f.origin_device_name
+        ? `<br><span class="muted">origin ${escapeHtml(f.origin_city_name || f.origin_device_name)} ${escapeHtml(f.origin_port_name || "")}</span>`
+        : "";
+      return `<li><span>${escapeHtml(f.signal_label || f.source_port_name || f.label)} → ${escapeHtml(destLine(f))}<br><span class="muted">${escapeHtml(f.source_device_name)}${f.dest_device_name ? ` · ${escapeHtml(f.dest_device_name)}` : ""} · ${escapeHtml(f.direction || "")}</span>${origin}</span>${badge(f.effective_status)}</li>`;
+    };
+    const originating = flows.filter((f) => f.source_device_id === d.id && !isOutputFlow(f));
+    const leaving = flows.filter((f) => f.source_device_id === d.id && isOutputFlow(f));
+    const landing = flows.filter((f) => f.dest_device_id === d.id);
+    const through = flows.filter((f) =>
+      f.origin_device_id === d.id && f.source_device_id !== d.id
+    );
+    const pathList = (rows, empty) => rows.length
+      ? `<ul class="row-list">${rows.map(pathItem).join("")}</ul>`
+      : `<p class="muted">${empty}</p>`;
+    return `
+      <div id="inv-health">
         <p>${badge(d.status)}${d.poll_enabled ? "" : ' <span class="badge unknown"><span class="dot"></span>poll off</span>'}</p>
-        <p class="muted">Credentials: ${d.credentials_ready ? '<span class="cred-flag ok">set</span>' : '<span class="cred-flag missing">missing — edit to add</span>'}</p>
-        <p class="form-actions"><button type="button" class="btn" id="inv-edit-device">Edit in portal</button></p>
-        <h3>Configuration</h3>
-        <p class="muted">${escapeHtml(d.vendor)} ${escapeHtml(d.model || "")} · ${escapeHtml(d.device_role || "device")}</p>
-        <p class="muted">${escapeHtml(d.access_mode)}${d.firmware_version ? ` · fw ${escapeHtml(d.firmware_version)}` : ""}</p>
         <p class="muted">Driver: ${escapeHtml(d.resolved_driver || d.driver_override || "unresolved")}</p>
         ${d.last_error ? `<p class="badge down">${escapeHtml(d.last_error)}</p>` : ""}
         <h3>Ports</h3>
+        <p class="form-actions"><button type="button" class="btn" id="inv-add-port">Add port</button></p>
         ${ports.length ? `<ul class="row-list">${ports.map((p) =>
-          `<li><span>${escapeHtml(p.name)}<br><span class="muted">${escapeHtml(p.kind)}${p.slot ? ` · slot ${escapeHtml(p.slot)}` : ""}</span></span>${badge(p.status)}</li>`
+          `<li><span>${escapeHtml(p.name)}<br><span class="muted">${escapeHtml(p.kind)}${p.slot ? ` · slot ${escapeHtml(p.slot)}` : ""}</span></span>
+            <button type="button" class="btn" data-edit-port="${p.id}">Edit</button></li>`
         ).join("")}</ul>` : `<p class="muted">None configured yet.</p>`}
         <h3>Paths originating here</h3>
         ${pathList(originating, "No encode/input paths on this device.")}
@@ -548,23 +677,124 @@
         ${polls.length ? `<ul class="row-list">${polls.map((p) =>
           `<li><span>${escapeHtml(fmtTime(p.polled_at))}<br><span class="muted">${escapeHtml(p.method)}${p.latency_ms != null ? ` · ${p.latency_ms}ms` : ""}</span></span>${p.success ? badge("up") : badge("down")}</li>`
         ).join("")}</ul>` : `<p class="muted">No poll history. Start the poller.</p>`}
-      `;
-      const editBtn = $("inv-edit-device");
-      if (editBtn) {
-        editBtn.addEventListener("click", () => {
-          editKind = "devices";
-          editId = d.id;
-          editDirty = false;
-          document.querySelectorAll("#edit-kinds button").forEach((b) => {
-            b.classList.toggle("active", b.dataset.kind === "devices");
-          });
-          setView("edit");
-          renderEditor(true);
-        });
-      }
-    } catch (err) {
-      panel.innerHTML = `<p class="muted">Could not load device: ${escapeHtml(err.message)}</p>`;
-    }
+      </div>
+    `;
+  }
+
+  function bindDevicePortActions(deviceId, _ports) {
+    const add = $("inv-add-port");
+    if (add) add.addEventListener("click", () => showPortEditor(deviceId, null));
+    $("inv-panel")?.querySelectorAll("[data-edit-port]").forEach((btn) => {
+      btn.addEventListener("click", () => showPortEditor(deviceId, Number(btn.dataset.editPort)));
+    });
+  }
+
+  function showPortEditor(deviceId, portId) {
+    if (!confirmLeaveForm()) return;
+    portReturnDeviceId = deviceId;
+    editDirty = false;
+    const panel = $("inv-panel");
+    const p = portId ? (state.ports || []).find((x) => x.id === portId) : { device_id: deviceId };
+    panel.innerHTML = portForm(p || { device_id: deviceId });
+    bindEditorForm(panel, "ports", {
+      getId: () => portId,
+      setId: (value) => { portId = value; },
+      onSaved: async () => {
+        portReturnDeviceId = null;
+        await refresh();
+        showDevice(deviceId);
+      },
+      onDeleted: async () => {
+        portReturnDeviceId = null;
+        await refresh();
+        showDevice(deviceId);
+      },
+      onCancel: () => {
+        portReturnDeviceId = null;
+        editDirty = false;
+        showDevice(deviceId);
+      },
+    });
+  }
+
+  function showNewDevice() {
+    if (!confirmLeaveForm()) return;
+    creatingDevice = true;
+    selectedDeviceId = null;
+    portReturnDeviceId = null;
+    editDirty = false;
+    $("inv-body")?.querySelectorAll("tr").forEach((r) => r.classList.remove("sel"));
+    const panel = $("inv-panel");
+    panel.innerHTML = deviceForm(null);
+    bindEditorForm(panel, "devices", {
+      getId: () => selectedDeviceId,
+      setId: (value) => { selectedDeviceId = value; creatingDevice = false; },
+      onSaved: async () => {
+        await refresh();
+        if (selectedDeviceId) showDevice(selectedDeviceId);
+      },
+      onDeleted: () => {},
+      onCancel: () => {
+        creatingDevice = false;
+        editDirty = false;
+        panel.innerHTML = `<p class="muted">Click a device to edit it. Host and credentials can be filled in later.</p>`;
+      },
+    });
+  }
+
+  function showFlowEditor(id) {
+    const panel = $("link-panel");
+    if (!panel) return;
+    const f = id ? (state.flows || []).find((x) => x.id === id) : null;
+    panel.innerHTML = flowForm(f || null);
+    bindEditorForm(panel, "flows", {
+      getId: () => selectedFlowId,
+      setId: (value) => { selectedFlowId = value; creatingFlow = false; },
+      onSaved: async () => {
+        await refresh();
+        showFlowEditor(selectedFlowId);
+      },
+      onDeleted: async () => {
+        selectedFlowId = null;
+        creatingFlow = false;
+        await refresh();
+        panel.innerHTML = `<p class="muted">Click a flow to edit, or New flow.</p>`;
+      },
+      onCancel: () => {
+        editDirty = false;
+        if (creatingFlow || !selectedFlowId) {
+          creatingFlow = false;
+          selectedFlowId = null;
+          panel.innerHTML = `<p class="muted">Click a flow to edit, or New flow.</p>`;
+          renderLinks();
+        } else {
+          showFlowEditor(selectedFlowId);
+        }
+      },
+    });
+    const src = panel.querySelector('[name="source_device_id"]');
+    const dst = panel.querySelector('[name="dest_device_id"]');
+    const srcPort = panel.querySelector('[name="source_port_id"]');
+    const dstPort = panel.querySelector('[name="dest_port_id"]');
+    const syncPorts = (selectEl, portEl) => {
+      if (!selectEl || !portEl) return;
+      const current = portEl.value;
+      const opts = portOptions(selectEl.value);
+      portEl.innerHTML = opts.map((o) =>
+        `<option value="${escapeAttr(o.value)}"${String(o.value) === String(current) ? " selected" : ""}>${escapeHtml(o.label)}</option>`
+      ).join("");
+    };
+    if (src) src.addEventListener("change", () => syncPorts(src, srcPort));
+    if (dst) dst.addEventListener("change", () => syncPorts(dst, dstPort));
+  }
+
+  function showNewFlow() {
+    if (!confirmLeaveForm()) return;
+    creatingFlow = true;
+    selectedFlowId = null;
+    editDirty = false;
+    $("links-body")?.querySelectorAll("tr").forEach((r) => r.classList.remove("sel"));
+    showFlowEditor(null);
   }
 
   function credFlag(set) {
@@ -608,68 +838,6 @@
     return [blankOption("(none)"), ...ports.map((p) => ({ value: p.id, label: `${p.device_name ? p.device_name + " · " : ""}${p.name}` }))];
   }
 
-  function editorRows() {
-    const q = ($("edit-search")?.value || "").trim().toLowerCase();
-    if (editKind === "cities") {
-      return (state.cities || []).filter((c) => !q || c.name.toLowerCase().includes(q))
-        .map((c) => ({ ...c, id: cityDbId(c) }));
-    }
-    if (editKind === "sites") {
-      return (state.sites || []).filter((s) => !q || `${s.name} ${s.city_name || ""}`.toLowerCase().includes(q));
-    }
-    if (editKind === "ports") {
-      return (state.ports || []).filter((p) => !q || `${p.device_name} ${p.name} ${p.kind}`.toLowerCase().includes(q));
-    }
-    if (editKind === "flows") {
-      return (state.flows || []).filter((f) => {
-        if (!q) return true;
-        return `${f.signal_label || ""} ${f.label} ${f.source_device_name} ${f.dest_display || ""} ${f.dest_city_name || ""}`.toLowerCase().includes(q);
-      });
-    }
-    return (state.devices || []).filter((d) => {
-      if (!q) return true;
-      return `${d.name} ${d.site_name} ${d.vendor} ${d.mgmt_host || ""}`.toLowerCase().includes(q);
-    });
-  }
-
-  function renderEditorTable() {
-    if (!$("edit-head")) return;
-    const heads = {
-      devices: ["Name", "Site", "Host", "Creds", "Poll"],
-      flows: ["Signal", "Source", "Dest city", "Dest"],
-      ports: ["Device", "Port", "Kind"],
-      sites: ["Site", "City"],
-      cities: ["City", "Lat", "Lng"],
-    };
-    $("edit-head").innerHTML = `<tr>${heads[editKind].map((h) => `<th>${h}</th>`).join("")}</tr>`;
-    const rows = editorRows();
-    const html = rows.map((row) => {
-      const sel = Number(editId) === Number(row.id) ? " sel" : "";
-      if (editKind === "devices") {
-        return `<tr class="${sel}" data-id="${row.id}"><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.site_name)}</td><td>${escapeHtml(row.mgmt_host || "—")}</td><td>${row.credentials_ready ? "set" : "missing"}</td><td>${row.poll_enabled ? "on" : "off"}</td></tr>`;
-      }
-      if (editKind === "flows") {
-        return `<tr class="${sel}" data-id="${row.id}"><td>${escapeHtml(row.signal_label || row.label)}</td><td>${escapeHtml(row.source_device_name)}</td><td>${escapeHtml(row.dest_city_name || "—")}</td><td>${escapeHtml(row.dest_device_name || row.dest_site_name || "—")}</td></tr>`;
-      }
-      if (editKind === "ports") {
-        return `<tr class="${sel}" data-id="${row.id}"><td>${escapeHtml(row.device_name)}</td><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.kind)}</td></tr>`;
-      }
-      if (editKind === "sites") {
-        return `<tr class="${sel}" data-id="${row.id}"><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.city_name || row.city || "—")}</td></tr>`;
-      }
-      return `<tr class="${sel}" data-id="${row.id}"><td>${escapeHtml(row.name)}</td><td>${row.lat ?? "—"}</td><td>${row.lng ?? "—"}</td></tr>`;
-    }).join("");
-    $("edit-body").innerHTML = html;
-    $("edit-empty").hidden = rows.length > 0;
-    $("edit-body").querySelectorAll("tr").forEach((tr) => {
-      tr.addEventListener("click", () => {
-        editId = Number(tr.dataset.id);
-        editDirty = false;
-        renderEditor(true);
-      });
-    });
-  }
-
   function formValues(form) {
     const data = {};
     form.querySelectorAll("input, select, textarea").forEach((el) => {
@@ -684,7 +852,7 @@
     const sites = (state.sites || []).map((s) => ({ value: s.id, label: s.name }));
     const cred = d ? `User ${credFlag(d.api_username_set)} · Pass ${credFlag(d.api_password_set)}` : "Values are stored in nexnoc.env, not config.json.";
     return `
-      <form class="form" id="edit-form">
+      <form class="form">
         <h2>${d ? escapeHtml(d.name) : "New device"}</h2>
         <p class="muted">${cred}</p>
         <div class="form-grid">
@@ -697,9 +865,9 @@
             { value: "generic_snmp", label: "Generic SNMP" },
           ], d?.vendor || "haivision")}
           ${field("Model", "model", d?.model || "")}
-          ${field("Role", "device_role", d?.device_role || "")}
           ${field("Firmware", "firmware_version", d?.firmware_version || "")}
           ${field("Management IP / host", "mgmt_host", d?.mgmt_host || "", "wide")}
+          ${field("SNMP host (if different)", "snmp_host", d?.snmp_host || "")}
           ${selectField("Access", "access_mode", [
             { value: "direct_api", label: "direct_api" },
             { value: "direct_snmp", label: "direct_snmp" },
@@ -710,20 +878,44 @@
           ${field("Password env name", "api_password_env", d?.api_password_env || "")}
           <label>Username value (write-only)<input name="api_username" type="text" autocomplete="off" placeholder="${d?.api_username_set ? "saved — type to replace" : "not set yet"}"></label>
           <label>Password value (write-only)<input name="api_password" type="password" autocomplete="new-password" placeholder="${d?.api_password_set ? "saved — type to replace" : "not set yet"}"></label>
+          ${selectField("SNMP version", "snmp_version", [
+            { value: "1", label: "v1" },
+            { value: "2c", label: "v2c" },
+            { value: "3", label: "v3" },
+          ], d?.snmp_version || "2c")}
+          ${field("SNMP port", "snmp_port", d?.snmp_port ?? 161)}
+          ${field("Community env name", "snmp_community_env", d?.snmp_community_env || "")}
+          <label>Community value (write-only)<input name="snmp_community" type="password" autocomplete="new-password" placeholder="${d?.snmp_community_set ? "saved — type to replace" : "not set yet"}"></label>
+          ${field("v3 user env name", "snmp_v3_user_env", d?.snmp_v3_user_env || "")}
+          ${selectField("v3 security", "snmp_v3_sec_level", [
+            { value: "noAuthNoPriv", label: "noAuthNoPriv" },
+            { value: "authNoPriv", label: "authNoPriv" },
+            { value: "authPriv", label: "authPriv" },
+          ], d?.snmp_v3_sec_level || "authPriv")}
+          ${field("v3 auth proto", "snmp_v3_auth_proto", d?.snmp_v3_auth_proto || "SHA")}
+          ${field("v3 priv proto", "snmp_v3_priv_proto", d?.snmp_v3_priv_proto || "AES")}
+          ${field("v3 auth pass env", "snmp_v3_auth_pass_env", d?.snmp_v3_auth_pass_env || "")}
+          ${field("v3 priv pass env", "snmp_v3_priv_pass_env", d?.snmp_v3_priv_pass_env || "")}
+          <label>v3 user value (write-only)<input name="snmp_v3_user" type="text" autocomplete="off" placeholder="${d?.snmp_v3_user_set ? "saved — type to replace" : "not set yet"}"></label>
+          <label>v3 auth pass (write-only)<input name="snmp_v3_auth_pass" type="password" autocomplete="new-password"></label>
+          <label>v3 priv pass (write-only)<input name="snmp_v3_priv_pass" type="password" autocomplete="new-password"></label>
+          <label class="wide"><input name="snmp_enabled" type="checkbox"${d?.snmp_enabled ? " checked" : ""}> SNMP GET in addition to API (v1/v2c/v3)</label>
+          <label class="wide"><input name="snmp_trap_enabled" type="checkbox"${(!d || d.snmp_trap_enabled) ? " checked" : ""}> Accept SNMP traps from this host</label>
           <label class="wide"><input name="poll_enabled" type="checkbox"${(!d || d.poll_enabled) ? " checked" : ""}> Poll this device</label>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn primary">Save</button>
-          ${d ? `<button type="button" class="btn danger" id="edit-delete">Delete</button>` : ""}
+          ${d ? `<button type="button" class="btn danger edit-delete">Delete</button>` : ""}
+          <button type="button" class="btn edit-cancel">Cancel</button>
         </div>
-        <p class="form-msg" id="edit-msg"></p>
+        <p class="form-msg"></p>
       </form>
     `;
   }
 
   function flowForm(f) {
     return `
-      <form class="form" id="edit-form">
+      <form class="form">
         <h2>${f ? escapeHtml(f.signal_label || f.label) : "New flow"}</h2>
         <div class="form-grid">
           ${field("Label", "label", f?.label || "")}
@@ -739,17 +931,18 @@
         </div>
         <div class="form-actions">
           <button type="submit" class="btn primary">Save</button>
-          ${f ? `<button type="button" class="btn danger" id="edit-delete">Delete</button>` : ""}
+          ${f ? `<button type="button" class="btn danger edit-delete">Delete</button>` : ""}
+          <button type="button" class="btn edit-cancel">Cancel</button>
         </div>
-        <p class="form-msg" id="edit-msg"></p>
+        <p class="form-msg"></p>
       </form>
     `;
   }
 
   function portForm(p) {
     return `
-      <form class="form" id="edit-form">
-        <h2>${p ? escapeHtml(p.name) : "New port"}</h2>
+      <form class="form">
+        <h2>${p && p.id ? escapeHtml(p.name) : "New port"}</h2>
         <div class="form-grid">
           ${selectField("Device", "device_id", deviceOptions().slice(1), p?.device_id, "wide")}
           ${field("Name", "name", p?.name || "")}
@@ -764,36 +957,44 @@
         </div>
         <div class="form-actions">
           <button type="submit" class="btn primary">Save</button>
-          ${p ? `<button type="button" class="btn danger" id="edit-delete">Delete</button>` : ""}
+          ${p && p.id ? `<button type="button" class="btn danger edit-delete">Delete</button>` : ""}
+          <button type="button" class="btn edit-cancel">Cancel</button>
         </div>
-        <p class="form-msg" id="edit-msg"></p>
+        <p class="form-msg"></p>
       </form>
     `;
   }
 
   function siteForm(s) {
+    const cityId = s?.city_id || newSiteCityId || "";
+    const city = (state.cities || []).find((c) => String(cityDbId(c)) === String(cityId));
+    const title = s
+      ? escapeHtml(s.name)
+      : (city ? `New site in ${escapeHtml(city.name)}` : "New site");
     return `
-      <form class="form" id="edit-form">
-        <h2>${s ? escapeHtml(s.name) : "New site"}</h2>
+      <form class="form">
+        <h2>${title}</h2>
+        <p class="muted">A city can have many sites (different buildings).</p>
         <div class="form-grid">
           ${field("Name", "name", s?.name || "", "wide")}
-          ${selectField("City", "city_id", cityOptions(), s?.city_id, "wide")}
+          ${selectField("City", "city_id", cityOptions(), cityId, "wide")}
           ${field("Latitude", "lat", s?.lat ?? "")}
           ${field("Longitude", "lng", s?.lng ?? "")}
           <label class="wide">Notes<textarea name="notes">${escapeHtml(s?.notes || "")}</textarea></label>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn primary">Save</button>
-          ${s ? `<button type="button" class="btn danger" id="edit-delete">Delete</button>` : ""}
+          ${s ? `<button type="button" class="btn danger edit-delete">Delete</button>` : ""}
+          <button type="button" class="btn edit-cancel">Cancel</button>
         </div>
-        <p class="form-msg" id="edit-msg"></p>
+        <p class="form-msg"></p>
       </form>
     `;
   }
 
   function cityForm(c) {
     return `
-      <form class="form" id="edit-form">
+      <form class="form">
         <h2>${c ? escapeHtml(c.name) : "New city"}</h2>
         <div class="form-grid">
           ${field("Name", "name", c?.name || "", "wide")}
@@ -803,39 +1004,61 @@
         </div>
         <div class="form-actions">
           <button type="submit" class="btn primary">Save</button>
-          ${c ? `<button type="button" class="btn danger" id="edit-delete">Delete</button>` : ""}
+          ${c ? `<button type="button" class="btn danger edit-delete">Delete</button>` : ""}
+          <button type="button" class="btn edit-cancel">Cancel</button>
         </div>
-        <p class="form-msg" id="edit-msg"></p>
+        <p class="form-msg"></p>
       </form>
     `;
   }
 
-  function fillEditorForm() {
-    const panel = $("edit-panel");
-    if (!panel || !state) return;
-    if (editKind === "devices") {
-      const d = (state.devices || []).find((x) => x.id === editId);
-      panel.innerHTML = deviceForm(d || null);
-    } else if (editKind === "flows") {
-      const f = (state.flows || []).find((x) => x.id === editId);
-      panel.innerHTML = flowForm(f || null);
-    } else if (editKind === "ports") {
-      const p = (state.ports || []).find((x) => x.id === editId);
-      panel.innerHTML = portForm(p || null);
-    } else if (editKind === "sites") {
-      const s = (state.sites || []).find((x) => x.id === editId);
+  function fillMapEditor() {
+    const panel = $("map-panel");
+    if (!panel || !mapEdit || !state) return;
+    $("view-map")?.querySelector(".map-wrap")?.classList.add("with-form");
+    if (mapEdit.kind === "sites") {
+      const s = mapEdit.id ? (state.sites || []).find((x) => x.id === mapEdit.id) : null;
       panel.innerHTML = siteForm(s || null);
     } else {
-      const c = (state.cities || []).find((x) => Number(cityDbId(x)) === Number(editId));
+      const c = mapEdit.id
+        ? (state.cities || []).find((x) => Number(cityDbId(x)) === Number(mapEdit.id))
+        : null;
       panel.innerHTML = cityForm(c || null);
     }
-    bindEditorForm();
-  }
-
-  function renderEditor(force) {
-    if (KIOSK || !$("edit-panel") || !state) return;
-    renderEditorTable();
-    if (force || !$("edit-form")) fillEditorForm();
+    bindEditorForm(panel, mapEdit.kind, {
+      getId: () => mapEdit && mapEdit.id,
+      setId: (value) => { if (mapEdit) mapEdit.id = value; },
+      onSaved: async () => {
+        const kind = mapEdit && mapEdit.kind;
+        const id = mapEdit && mapEdit.id;
+        mapEdit = null;
+        newSiteCityId = null;
+        await refresh();
+        if (kind === "cities" && id) {
+          const city = (state.cities || []).find((c) => Number(cityDbId(c)) === Number(id));
+          if (city) select("city", city.id);
+          else renderMap();
+        } else if (kind === "sites" && id) {
+          const site = (state.sites || []).find((s) => s.id === id);
+          if (site && site.city_key) select("city", site.city_key);
+          else renderMap();
+        } else {
+          renderMap();
+        }
+      },
+      onDeleted: async () => {
+        mapEdit = null;
+        newSiteCityId = null;
+        await refresh();
+        select(null, null);
+      },
+      onCancel: () => {
+        mapEdit = null;
+        newSiteCityId = null;
+        editDirty = false;
+        renderMap();
+      },
+    });
   }
 
   async function apiSend(method, path, body) {
@@ -849,68 +1072,79 @@
     return data;
   }
 
-  function collectionPath() {
-    return `/api/${editKind}`;
-  }
-
-  function cleanBody(data) {
+  function cleanBody(data, kind) {
     const body = { ...data };
-    ["api_username", "api_password"].forEach((k) => {
+    ["api_username", "api_password", "snmp_community",
+      "snmp_v3_user", "snmp_v3_auth_pass", "snmp_v3_priv_pass"].forEach((k) => {
       if (!body[k]) delete body[k];
     });
-    ["lat", "lng", "api_port", "site_id", "city_id", "device_id", "source_device_id",
+    ["lat", "lng", "api_port", "snmp_port", "site_id", "city_id", "device_id", "source_device_id",
       "source_port_id", "dest_city_id", "dest_site_id", "dest_device_id", "dest_port_id",
     ].forEach((k) => {
       if (body[k] === "") body[k] = null;
     });
-    if (editKind === "sites" && body.city_id) {
-      const city = (state.cities || []).find((c) => String(c.id) === String(body.city_id));
+    if (kind === "sites" && body.city_id) {
+      const city = (state.cities || []).find((c) => String(cityDbId(c)) === String(body.city_id));
       if (city) body.city = city.name;
     }
     return body;
   }
 
-  function bindEditorForm() {
-    const form = $("edit-form");
+  function bindEditorForm(panel, kind, hooks) {
+    const form = panel.querySelector("form.form");
     if (!form) return;
+    const msg = form.querySelector(".form-msg");
     form.addEventListener("input", () => { editDirty = true; });
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      const msg = $("edit-msg");
       try {
-        const body = cleanBody(formValues(form));
-        const path = editId ? `${collectionPath()}/${editId}` : collectionPath();
-        const method = editId ? "PATCH" : "POST";
+        const itemId = hooks.getId();
+        const body = cleanBody(formValues(form), kind);
+        const path = itemId ? `/api/${kind}/${itemId}` : `/api/${kind}`;
+        const method = itemId ? "PATCH" : "POST";
         const result = await apiSend(method, path, body);
-        msg.className = "form-msg ok";
-        msg.textContent = "Saved.";
-        editDirty = false;
-        if (!editId) {
-          const created = result.device || result.flow || result.port || result.site || result.city;
-          if (created && created.id) editId = created.id;
+        if (msg) {
+          msg.className = "form-msg ok";
+          msg.textContent = "Saved.";
         }
-        await refresh();
-        renderEditor(true);
+        editDirty = false;
+        if (!itemId) {
+          const created = result.device || result.flow || result.port || result.site || result.city;
+          if (created && created.id) hooks.setId(created.id);
+        }
+        newSiteCityId = null;
+        await hooks.onSaved();
       } catch (err) {
-        msg.className = "form-msg err";
-        msg.textContent = err.message;
-      }
-    });
-    const del = $("edit-delete");
-    if (del) {
-      del.addEventListener("click", async () => {
-        if (!editId || !window.confirm("Delete this item?")) return;
-        const msg = $("edit-msg");
-        try {
-          await apiSend("DELETE", `${collectionPath()}/${editId}`);
-          editId = null;
-          editDirty = false;
-          await refresh();
-          renderEditor(true);
-        } catch (err) {
+        if (msg) {
           msg.className = "form-msg err";
           msg.textContent = err.message;
         }
+      }
+    });
+    const del = form.querySelector(".edit-delete");
+    if (del) {
+      del.addEventListener("click", async () => {
+        const itemId = hooks.getId();
+        if (!itemId || !window.confirm("Delete this item?")) return;
+        try {
+          await apiSend("DELETE", `/api/${kind}/${itemId}`);
+          hooks.setId(null);
+          editDirty = false;
+          await hooks.onDeleted();
+        } catch (err) {
+          if (msg) {
+            msg.className = "form-msg err";
+            msg.textContent = err.message;
+          }
+        }
+      });
+    }
+    const cancel = form.querySelector(".edit-cancel");
+    if (cancel && hooks.onCancel) {
+      cancel.addEventListener("click", () => {
+        if (!confirmLeaveForm()) return;
+        editDirty = false;
+        hooks.onCancel();
       });
     }
   }
@@ -939,7 +1173,6 @@
         renderLinkFilters();
         renderLinks();
         renderInventory();
-        renderEditor(false);
       }
       $("refresh-status").textContent = `Live · refreshed ${new Date().toLocaleTimeString()}`;
       $("poll-age").textContent = state.latest_poll_at
@@ -957,28 +1190,12 @@
     const el = $(id);
     if (el) el.addEventListener("input", renderLinks);
   });
-
-  document.querySelectorAll("#edit-kinds button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      editKind = btn.dataset.kind;
-      editId = null;
-      editDirty = false;
-      document.querySelectorAll("#edit-kinds button").forEach((b) => {
-        b.classList.toggle("active", b === btn);
-      });
-      renderEditor(true);
-    });
-  });
-  const editSearch = $("edit-search");
-  if (editSearch) editSearch.addEventListener("input", () => renderEditorTable());
-  const editNew = $("edit-new");
-  if (editNew) {
-    editNew.addEventListener("click", () => {
-      editId = null;
-      editDirty = false;
-      renderEditor(true);
-    });
-  }
+  const invSearch = $("inv-search");
+  if (invSearch) invSearch.addEventListener("input", renderInventory);
+  const invNew = $("inv-new");
+  if (invNew) invNew.addEventListener("click", showNewDevice);
+  const linkNew = $("link-new");
+  if (linkNew) linkNew.addEventListener("click", showNewFlow);
 
   setView(currentView);
   tickClock();

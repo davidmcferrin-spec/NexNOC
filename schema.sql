@@ -86,10 +86,22 @@ CREATE TABLE IF NOT EXISTS devices (
     api_username_env    TEXT,                       -- name of env var holding the username
     api_password_env    TEXT,                       -- name of env var holding the password
 
-    -- SNMP fields (direct_snmp mode, or as a secondary check for direct_api devices)
+    -- SNMP: parallel monitoring channel (GET v1/v2c/v3) in addition to the
+    -- vendor API when snmp_enabled=1. Traps are accepted when snmp_trap_enabled=1.
+    -- Values for community / v3 secrets are env var *names*, never plaintext.
     snmp_host           TEXT,                       -- usually same as mgmt_host
     snmp_port           INTEGER NOT NULL DEFAULT 161,
-    snmp_community_env  TEXT,                       -- name of env var holding the community string
+    snmp_community_env  TEXT,
+    snmp_version        TEXT NOT NULL DEFAULT '2c'
+                            CHECK (snmp_version IN ('1','2c','3')),
+    snmp_enabled        INTEGER NOT NULL DEFAULT 0, -- GET alongside API when set
+    snmp_trap_enabled   INTEGER NOT NULL DEFAULT 1,
+    snmp_v3_user_env    TEXT,
+    snmp_v3_sec_level   TEXT DEFAULT 'authPriv',
+    snmp_v3_auth_proto  TEXT DEFAULT 'SHA',
+    snmp_v3_auth_pass_env TEXT,
+    snmp_v3_priv_proto  TEXT DEFAULT 'AES',
+    snmp_v3_priv_pass_env TEXT,
 
     -- Central-NMS fields (via_nms mode; e.g. Net Insight Nimbra Vision)
     nms_host             TEXT,
@@ -108,6 +120,9 @@ CREATE TABLE IF NOT EXISTS devices (
 
 CREATE INDEX IF NOT EXISTS idx_devices_site ON devices(site_id);
 CREATE INDEX IF NOT EXISTS idx_devices_vendor ON devices(vendor);
+-- Empty mgmt_host is allowed many times (pending inventory). Non-empty IPs are unique.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_mgmt_host
+    ON devices(mgmt_host) WHERE mgmt_host != '';
 
 -- ---------------------------------------------------------------------------
 -- Modules: cards/slots/channels inside a device, discovered during polling
@@ -268,3 +283,22 @@ CREATE TABLE IF NOT EXISTS poll_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_poll_log_device_time ON poll_log(device_id, polled_at);
+
+-- ---------------------------------------------------------------------------
+-- SNMP traps (v1/v2c decoded here; v3 via snmptrapd traphandle).
+-- Community / v3 secrets are never stored — only source IP, OID, varbinds.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS trap_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id       INTEGER REFERENCES devices(id) ON DELETE SET NULL,
+    received_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    source_ip       TEXT NOT NULL,
+    version         TEXT,
+    trap_oid        TEXT,
+    generic_trap    INTEGER,
+    varbinds_json   TEXT,
+    matched         INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_trap_log_device_time ON trap_log(device_id, received_at);
+CREATE INDEX IF NOT EXISTS idx_trap_log_source ON trap_log(source_ip);

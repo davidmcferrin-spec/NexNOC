@@ -72,5 +72,38 @@ class TestNetInsightDriver(unittest.TestCase):
             driver.discover()
 
 
+class TestSnmpV3Args(unittest.TestCase):
+    def test_snmp_get_v3_builds_usm_flags(self):
+        from drivers.snmp_util import SnmpTarget
+
+        fake_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="ok\n", stderr="")
+        captured = {}
+
+        def run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            return fake_result
+
+        target = SnmpTarget(
+            host="10.0.0.1", version="3", v3_user="noc",
+            v3_sec_level="authPriv", v3_auth_proto="SHA", v3_auth_pass="auth-secret",
+            v3_priv_proto="AES", v3_priv_pass="priv-secret",
+        )
+        with patch("drivers.snmp_util.subprocess.run", side_effect=run):
+            snmp_get("10.0.0.1", target=target)
+        cmd = captured["cmd"]
+        self.assertIn("-v3", cmd)
+        self.assertIn("-u", cmd)
+        self.assertIn("noc", cmd)
+        self.assertIn("-l", cmd)
+        self.assertIn("authPriv", cmd)
+        self.assertEqual(cmd[0], "snmpget")
+        # argv may contain secrets; SnmpError messages must not
+        with patch("drivers.snmp_util.subprocess.run", side_effect=FileNotFoundError()):
+            with self.assertRaises(SnmpError) as ctx:
+                snmp_get("10.0.0.1", target=target)
+        self.assertNotIn("auth-secret", str(ctx.exception))
+        self.assertNotIn("priv-secret", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

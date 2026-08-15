@@ -32,12 +32,50 @@ class TestFromPathXlsx(unittest.TestCase):
         dest_cities = {f["dest_city"] for f in self.cfg["flows"]}
         self.assertIn("Burbank", dest_cities)
 
-    def test_env_names_only_no_secret_values(self):
+    def test_dc_and_wdcw_are_distinct_sites(self):
+        sites = {s["name"] for s in self.cfg["sites"]}
+        self.assertIn("400 N. Capital St", sites)
+        self.assertIn("WDCW TV Station", sites)
+        self.assertNotIn("NewsNation DC", sites)
+        self.assertNotIn("Washington DC - WDCW", sites)
+        by_name = {s["name"]: s for s in self.cfg["sites"]}
+        self.assertEqual(by_name["400 N. Capital St"]["city"], "Washington DC")
+        self.assertEqual(by_name["WDCW TV Station"]["city"], "Washington DC")
+        nn_dests = {f["dest_site"] for f in self.cfg["flows"] if "NN DC" in (f.get("signal") or "")}
+        self.assertTrue(nn_dests)
+        self.assertTrue(nn_dests <= {"400 N. Capital St", "WDCW TV Station"})
+
+    def test_core_device_name_drops_link_octet_when_unique(self):
+        names = {d["name"] for d in self.cfg["devices"]}
+        self.assertIn("DC-HAI-19", names)
+        dc19 = next(d for d in self.cfg["devices"] if d["name"] == "DC-HAI-19")
+        self.assertEqual(dc19["mgmt_host"], "10.115.19.20")
+        self.assertEqual(dc19["site"], "400 N. Capital St")
+        self.assertIn("DC-HAI-40.109", names)
+        self.assertIn("DC-HAI-40.110", names)
+        for name in ("DC-HAI-40.109", "DC-HAI-40.110"):
+            self.assertEqual(
+                next(d for d in self.cfg["devices"] if d["name"] == name)["site"],
+                "400 N. Capital St",
+            )
+
+    def test_path_group_shares_encoder(self):
+        names = {d["name"] for d in self.cfg["devices"]}
+        self.assertNotIn("NY-HAI-HAI1012", names)
+        flow = next(f for f in self.cfg["flows"] if f.get("label") == "HAI 1012")
+        self.assertEqual(flow["source_device"], "NY-HAI-9.245")
+        self.assertEqual(flow["source_port"], "In 2")
+
+    def test_credentials_live_on_device_records(self):
         for d in self.cfg["devices"]:
             self.assertTrue(d["api_username_env"].endswith("_USER"))
             self.assertTrue(d["api_password_env"].endswith("_PASS"))
-            self.assertNotIn("api_username", d)
-            self.assertNotIn("api_password", d)
+        ny = next(d for d in self.cfg["devices"] if d["name"] == "NY-HAI-9.245")
+        self.assertEqual(ny.get("api_username"), "admin")
+        self.assertTrue(ny.get("api_password"))
+        appear = next(d for d in self.cfg["devices"] if d["name"] == "DC-X20-5")
+        self.assertEqual(appear.get("api_username"), "news")
+        self.assertTrue(appear.get("api_password"))
 
 
 if __name__ == "__main__":

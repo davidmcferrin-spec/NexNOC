@@ -12,6 +12,7 @@ docstring.
 from __future__ import annotations
 
 from drivers.appear import AppearXPlatformDriver
+from drivers.generic_snmp import GenericSnmpDriver
 from drivers.haivision import HaivisionMakitoXDriver
 from drivers.net_insight import NetInsightNimbraDriver
 
@@ -19,4 +20,5 @@ DRIVER_REGISTRY: list[type] = [
     AppearXPlatformDriver,
     HaivisionMakitoXDriver,
     NetInsightNimbraDriver,
+    GenericSnmpDriver,
 ]
