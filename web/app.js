@@ -282,6 +282,9 @@
     if (id) {
       hit.on("click", (ev) => stopSelect(ev, "hop", id));
       line.on("click", (ev) => stopSelect(ev, "hop", id));
+    } else {
+      hit.on("click", (ev) => L.DomEvent.stop(ev));
+      line.on("click", (ev) => L.DomEvent.stop(ev));
     }
     overlay.addLayer(hit);
     overlay.addLayer(line);
@@ -293,11 +296,20 @@
       (rank[s] || 0) > (rank[worst] || 0) ? s : worst, "unknown");
   }
 
+  function hopEndIds(hop) {
+    return [hop.city_a_id, hop.city_b_id, hop.source_city_id, hop.dest_city_id]
+      .filter(Boolean)
+      .map(String);
+  }
+
   function cityHopId(sourceKey, destKey) {
-    return (state.hops || []).find((h) =>
-      (h.city_a_id === sourceKey && h.city_b_id === destKey)
-      || (h.city_a_id === destKey && h.city_b_id === sourceKey)
-    )?.id || null;
+    const a = sourceKey != null ? String(sourceKey) : "";
+    const b = destKey != null ? String(destKey) : "";
+    if (!a || !b) return null;
+    return (state.hops || []).find((h) => {
+      const ends = new Set(hopEndIds(h));
+      return ends.has(a) && ends.has(b);
+    })?.id || null;
   }
 
   function sitePairHops() {
@@ -315,15 +327,26 @@
       const aKey = f.source_site_id || `src:${f.source_device_id}`;
       const bKey = f.dest_site_id || `dst:${f.dest_city_key || f.dest_label || "x"}`;
       const key = String(aKey) < String(bKey) ? `${aKey}:${bKey}` : `${bKey}:${aKey}`;
+      const parentId = cityHopId(f.source_city_key, f.dest_city_key);
       const bucket = buckets.get(key) || {
-        id: cityHopId(f.source_city_key, f.dest_city_key),
+        id: parentId || `pair:${key}`,
+        city_a_id: f.source_city_key,
+        city_b_id: f.dest_city_key,
+        city_a_name: f.source_city_name || f.source_site_name,
+        city_b_name: f.dest_city_name || f.dest_site_name,
+        source_city_id: f.source_city_key,
+        dest_city_id: f.dest_city_key,
+        source_city_name: f.source_city_name || f.source_site_name,
+        dest_city_name: f.dest_city_name || f.dest_site_name,
         source_lat: aLat,
         source_lng: aLng,
         dest_lat: bLat,
         dest_lng: bLng,
+        flow_ids: [],
         flow_count: 0,
         statuses: [],
       };
+      bucket.flow_ids.push(f.id);
       bucket.flow_count += 1;
       bucket.statuses.push(f.effective_status || f.status);
       buckets.set(key, bucket);
@@ -458,7 +481,11 @@
   }
 
   function stopSelect(ev, type, id) {
-    L.DomEvent.stopPropagation(ev);
+    L.DomEvent.stop(ev);
+    if (ev && ev.originalEvent) {
+      L.DomEvent.stop(ev.originalEvent);
+      ev.originalEvent._stopped = true;
+    }
     select(type, id);
   }
 
@@ -478,7 +505,10 @@
         center: [39.8, -98.6],
         zoom: 4,
       });
-      leafletMap.on("click", () => select(null, null));
+      leafletMap.on("click", (ev) => {
+        if (ev.originalEvent && ev.originalEvent._stopped) return;
+        select(null, null);
+      });
       leafletMap.on("zoomend", () => renderMap({ overlayOnly: true }));
       overlay = L.layerGroup().addTo(leafletMap);
     } else {
@@ -694,9 +724,20 @@
       if (back && city) back.addEventListener("click", () => select("city", city.id));
       return;
     }
-    const hop = (state.hops || []).find((h) => h.id === selected.id);
-    if (!hop) return;
+    const hop = findHop(selected.id);
+    if (!hop) {
+      panel.innerHTML = `<p class="muted">Could not load this trunk. Click the line again, or pick a city.</p>`;
+      return;
+    }
     renderHopTrunkPanel(panel, hop);
+  }
+
+  function findHop(id) {
+    const want = id == null ? "" : String(id);
+    if (!want) return null;
+    const fromState = (state.hops || []).find((h) => String(h.id) === want);
+    if (fromState) return fromState;
+    return sitePairHops().find((h) => String(h.id) === want) || null;
   }
 
   function hopEndCities(hop) {
@@ -715,11 +756,17 @@
   }
 
   function trunkFlows(hop) {
-    const ends = new Set([hop.city_a_id, hop.city_b_id, hop.source_city_id, hop.dest_city_id].filter(Boolean));
+    const ids = hop.flow_ids || [];
+    if (ids.length) {
+      const want = new Set(ids.map(String));
+      const matched = (state.flows || []).filter((f) => want.has(String(f.id)));
+      if (matched.length) return matched;
+    }
+    const ends = new Set(hopEndIds(hop));
     return (state.flows || []).filter((f) =>
       f.source_city_key && f.dest_city_key
-      && ends.has(f.source_city_key) && ends.has(f.dest_city_key)
-      && f.source_city_key !== f.dest_city_key
+      && ends.has(String(f.source_city_key)) && ends.has(String(f.dest_city_key))
+      && String(f.source_city_key) !== String(f.dest_city_key)
     );
   }
 

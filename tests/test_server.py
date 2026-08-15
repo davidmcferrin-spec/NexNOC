@@ -106,6 +106,7 @@ class TestDashboardState(unittest.TestCase):
         chi_hop = next(h for h in state["hops"] if "Chicago" in (h["city_a_name"], h["city_b_name"]))
         nyc_hop = next(h for h in state["hops"] if "New York" in (h["city_a_name"], h["city_b_name"]))
         self.assertEqual(chi_hop["flow_count"], 1)
+        self.assertEqual(chi_hop["flow_ids"], [chi])
         self.assertEqual(chi_hop["status"], "down")
         self.assertEqual(nyc_hop["status"], "up")
         self.assertIn("|", chi_hop["id"])
@@ -134,6 +135,7 @@ class TestDashboardState(unittest.TestCase):
         chi_hops = [h for h in state["hops"] if "Chicago" in (h["city_a_name"], h["city_b_name"])]
         self.assertEqual(len(chi_hops), 1)
         self.assertEqual(chi_hops[0]["flow_count"], 2)
+        self.assertEqual(len(chi_hops[0]["flow_ids"]), 2)
         self.assertEqual(sorted(chi_hops[0]["site_names"]),
                          ["Chicago - Midway", "Chicago - Wacker", "Huntsville HQ"])
 

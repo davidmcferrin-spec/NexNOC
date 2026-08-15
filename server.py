@@ -404,6 +404,7 @@ def _aggregate_hops(flows_out: list[dict], cities_out: list[dict]) -> list[dict]
             "dest_lng": bucket["dest_lng"],
             "status": _worst(bucket["statuses"], _SIGNAL_RANK),
             "flow_count": len(bucket["flow_ids"]),
+            "flow_ids": bucket["flow_ids"],
             "flows_by_status": _count_by(bucket["statuses"]),
             "site_names": sorted(bucket["site_names"]),
             "dest_site_names": sorted(bucket["site_names"]),
