@@ -90,8 +90,9 @@ schemas when building Phase 2/3 parsing logic.** Confirm first, implement second
 
 ## Setup (Debian / Ubuntu LTS)
 
-Production path: Apache on :80, Python dashboard on `127.0.0.1:8080`,
-SQLite at `/var/lib/nexnoc/noc.db`. No pip, no MySQL.
+Production path: Apache on :80 serves `web/` and proxies `/api/` to
+Python on `127.0.0.1:8080`. SQLite at `/var/lib/nexnoc/noc.db`. No pip,
+no MySQL.
 
 ```bash
 sudo ./setup.sh
@@ -348,10 +349,10 @@ for admins cleaning up inventory without hand-editing SQLite.
 | `web/vendor/leaflet/` | Vendored Leaflet 1.9.4 (no npm) |
 | `scripts/fetch_tiles.py` | Build a local CONUS XYZ tile pack for air-gapped / production use |
 | `config.example.json` | Template multi-vendor inventory config (includes example trunks/signals) |
-| `setup.sh` | Debian/Ubuntu installer: apt, systemd, Apache reverse-proxy, SQLite bootstrap |
+| `setup.sh` | Debian/Ubuntu installer: apt, systemd, Apache (site + `/api` proxy), SQLite bootstrap |
 | `systemd/` | `nexnoc-poller.service` + `nexnoc-web.service` + `nexnoc-trapd.service` |
 | `trapd.py` | SNMPv1/v2c UDP trap listener (v3 via snmptrapd traphandle) |
-| `config/apache-nexnoc.conf` | Apache vhost template (proxies to loopback) |
+| `config/apache-nexnoc.conf` | Apache vhost: `web/` + `/tiles` + `/uploads/pins`; `/api/` → loopback |
 | `config/nexnoc.env.example` | Credential env template (copied to `/etc/nexnoc/nexnoc.env`) |
 | `tests/` | Unit tests (no network) |
 

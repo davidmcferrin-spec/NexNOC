@@ -1,5 +1,5 @@
 [Unit]
-Description=NexNOC dashboard (loopback HTTP)
+Description=NexNOC API (loopback HTTP)
 After=network-online.target
 Wants=network-online.target
 
@@ -9,10 +9,14 @@ User=nexnoc
 Group=nexnoc
 WorkingDirectory=/opt/nexnoc
 EnvironmentFile=-/etc/nexnoc/nexnoc.env
+Environment=NEXNOC_PIN_DIR=/var/lib/nexnoc/uploads/pins
+Environment=NEXNOC_SVC_HELPER=/opt/nexnoc/scripts/nexnoc-svc
 ExecStart=/usr/bin/python3 /opt/nexnoc/server.py --db /var/lib/nexnoc/noc.db --host 127.0.0.1 --port 8080 --map-config /etc/nexnoc/config.json
 Restart=on-failure
 RestartSec=5
-NoNewPrivileges=true
+# Admin → Services runs `sudo nexnoc-svc`. NoNewPrivileges blocks that
+# setuid even with a correct sudoers drop-in. Poller/trapd keep it on.
+NoNewPrivileges=false
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/nexnoc /var/log/nexnoc

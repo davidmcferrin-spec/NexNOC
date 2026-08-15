@@ -10,7 +10,8 @@ what's still open.
 
 Off by default — `setup.sh` installs a plain `:80` vhost
 (`config/apache-nexnoc.conf`) with the `:443` block present but commented
-out. The login form (and every session cookie) is plaintext HTTP until this
+out. Apache serves `web/` and proxies only `/api/` to `nexnoc-web`.
+The login form (and every session cookie) is plaintext HTTP until this
 is done. The app side needs no change: `auth.request_is_secure()` already
 reads `X-Forwarded-Proto` and sets the session cookie's `Secure` flag
 accordingly — flipping the vhost is the entire fix.
@@ -99,9 +100,11 @@ normal backup story uses — the script only handles the local rotation.
 Confirmed in place, listed here so this checklist doesn't re-raise them:
 
 - **systemd hardening**: all three units run as the unprivileged `nexnoc`
-  user with `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`,
-  `PrivateTmp`; `nexnoc-trapd` gets only `CAP_NET_BIND_SERVICE`, nothing
-  broader, to bind UDP 162.
+  user with `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`.
+  `nexnoc-poller` and `nexnoc-trapd` also set `NoNewPrivileges`.
+  `nexnoc-web` leaves it off so Admin → Services can `sudo` the
+  allowlisted `nexnoc-svc` helper. `nexnoc-trapd` gets only
+  `CAP_NET_BIND_SERVICE`, nothing broader, to bind UDP 162.
 - **Log rotation**: `poller.py`/`trapd.py` use a stdlib `RotatingFileHandler`
   (5MB × 3 backups) when `--log-file` is set (both units set it).
   `nexnoc-web` logs to stdout → journald, which rotates itself.

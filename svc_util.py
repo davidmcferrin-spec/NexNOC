@@ -14,7 +14,7 @@ SERVICE_UNITS = (
     ("nexnoc-web", "Dashboard (loopback HTTP)"),
     ("nexnoc-poller", "Device health poller"),
     ("nexnoc-trapd", "SNMP trap listener"),
-    ("apache2", "Apache reverse proxy"),
+    ("apache2", "Apache (site + API proxy)"),
 )
 ALLOWED_UNITS = {unit for unit, _label in SERVICE_UNITS}
 # Restarting these kills the request path (origin or the reverse proxy),

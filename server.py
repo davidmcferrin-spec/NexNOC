@@ -1,10 +1,10 @@
 """
 server.py - Phase 2 dashboard for NexNOC.
 
-Stdlib HTTP server (http.server). Serves the vanilla web/ frontend and a
-JSON API over the same SQLite file the poller writes. Polling refresh on
-the client - no WebSocket dependency. Inventory create/edit/delete plus
-credential values (written to nexnoc.env, never to config.json or the DB).
+Stdlib HTTP server (http.server). Production Apache serves web/ and
+proxies only /api/ here. This process is the JSON API (auth, state,
+inventory) plus a local-dev fallback that can still serve web/, /tiles,
+and /uploads when you run python3 server.py without Apache.
 
 Run (after bootstrap):
     python3 server.py --db noc.db --port 8080
@@ -12,9 +12,9 @@ Run (after bootstrap):
 Optionally bootstrap on start:
     python3 server.py --config config.json --db noc.db
 
-Bind defaults to 127.0.0.1. GET / is the login page. Local + LDAP login
-gates /dashboard and all writes. GET /kiosk, /api/state, and /api/time
-stay anonymous so the wall board works without a session.
+Bind defaults to 127.0.0.1. GET /api/state and /api/time stay anonymous
+so the wall board can poll. Writes need a session. Static HTML on this
+port is a local-dev convenience — production Apache owns the site.
 """
 
 from __future__ import annotations

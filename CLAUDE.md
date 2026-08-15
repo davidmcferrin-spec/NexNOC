@@ -38,16 +38,16 @@ were pulled off the active roadmap — see "Future ideas" below.
   The geo view is Leaflet (vendored, no npm) with real tiles — pan/zoom.
   One undirected trunk per city pair; click the trunk to list paths.
   Dev uses Carto Dark Matter CDN; production sets `map.local_tile_dir` and
-  the stdlib server serves `/tiles/{z}/{x}/{y}.png`. Do not go back to a
-  hand-drawn CONUS SVG silhouette. Sample inventory is CHI / NYC / DC /
-  ATL / Indy — not Huntsville or LA.
+  Apache serves `/tiles/{z}/{x}/{y}.png` from that directory. Do not go
+  back to a hand-drawn CONUS SVG silhouette. Sample inventory is CHI /
+  NYC / DC / ATL / Indy — not Huntsville or LA.
 - **Connectivity**: central management host reaches devices directly — no
   per-site relay/agent needed.
 - **DB**: SQLite. Single-digit device count doesn't justify a server RDBMS.
   Production layout (Debian/Ubuntu): `sudo ./setup.sh` → `/opt/nexnoc`,
   `/etc/nexnoc/{config.json,nexnoc.env}`, `/var/lib/nexnoc/noc.db`,
-  systemd `nexnoc-poller` + `nexnoc-web` (127.0.0.1:8080), Apache reverse
-  proxy. MySQL is not implemented.
+  systemd `nexnoc-poller` + `nexnoc-web` (JSON API on 127.0.0.1:8080),
+  Apache serves `web/` and proxies `/api/`. MySQL is not implemented.
 - **Stack constraint**: stdlib-only Python (no pip beyond stdlib), no
   Docker, no Node.
 - **SNMP is a real, implemented parallel channel, not just an
@@ -148,7 +148,8 @@ device management subnet); no DB backup is scheduled
 (`scripts/nexnoc-backup-db` exists, needs a cron entry); `nexnoc.env`
 ships full of `change_me` placeholders that need real per-device values
 before the poller can reach anything. Log rotation, systemd hardening
-(`NoNewPrivileges`/`ProtectSystem=strict`/capability-scoped trapd), and
+(`NoNewPrivileges` on poller/trapd — not nexnoc-web, which must `sudo`
+  `nexnoc-svc`; `ProtectSystem=strict`/capability-scoped trapd), and
 credential-never-in-DB were already handled before this pass — don't
 re-flag them.
 

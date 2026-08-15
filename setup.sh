@@ -127,12 +127,16 @@ ensure_user_and_dirs() {
   else
     ok "user nexnoc already exists"
   fi
-  mkdir -p "${PREFIX}" "${DATA}" "${ETC}" "${LOG}" "${DATA}/tiles"
+  mkdir -p "${PREFIX}" "${DATA}" "${ETC}" "${LOG}" \
+    "${DATA}/tiles" "${DATA}/uploads/pins"
   chown root:root "${PREFIX}"
-  chown nexnoc:nexnoc "${DATA}" "${LOG}"
+  chown nexnoc:nexnoc "${DATA}" "${LOG}" "${DATA}/tiles" "${DATA}/uploads" "${DATA}/uploads/pins"
   chown root:nexnoc "${ETC}"
   chmod 0755 "${PREFIX}"
-  chmod 0750 "${DATA}" "${ETC}" "${LOG}"
+  # 0751 so Apache can traverse to tiles/uploads without listing DATA (noc.db stays 0640).
+  chmod 0751 "${DATA}"
+  chmod 0750 "${ETC}" "${LOG}"
+  chmod 0755 "${DATA}/tiles" "${DATA}/uploads" "${DATA}/uploads/pins"
   ok "${PREFIX}  ${ETC}  ${DATA}  ${LOG}"
 }
 
@@ -168,9 +172,13 @@ install_svc_helper() {
   step "Admin service helper"
   [[ -f "${PREFIX}/scripts/nexnoc-svc" ]] || fail "missing ${PREFIX}/scripts/nexnoc-svc"
   chmod 755 "${PREFIX}/scripts/nexnoc-svc"
+  # No trailing " *" — sudo treats that as a single-argument glob, so
+  # `status nexnoc-web` (two args) would require a password.
+  # A command with no args matches that command with any arguments.
   cat > /etc/sudoers.d/nexnoc-svc <<EOF
 # NexNOC Admin → Services. Units are allowlisted inside the helper.
-nexnoc ALL=(root) NOPASSWD: ${PREFIX}/scripts/nexnoc-svc *
+Defaults:nexnoc !requiretty
+nexnoc ALL=(root) NOPASSWD: ${PREFIX}/scripts/nexnoc-svc
 EOF
   chmod 440 /etc/sudoers.d/nexnoc-svc
   if command -v visudo >/dev/null 2>&1; then
@@ -237,7 +245,7 @@ install_units() {
 }
 
 install_apache() {
-  step "Apache reverse proxy"
+  step "Apache site + API proxy"
   local name
   name="$(default_server_name)"
   [[ -f "${PREFIX}/config/apache-nexnoc.conf" ]] || fail "missing Apache template"
@@ -245,12 +253,14 @@ install_apache() {
   if ! command -v a2enmod >/dev/null 2>&1; then
     fail "a2enmod not found — install apache2"
   fi
-  a2enmod proxy proxy_http headers >/dev/null
-  ok "enabled proxy proxy_http headers"
+  a2enmod proxy proxy_http headers rewrite alias >/dev/null
+  ok "enabled proxy proxy_http headers rewrite alias"
 
   sed \
     -e "s|@@SERVER_NAME@@|${name}|g" \
     -e "s|@@WEB_PORT@@|${WEB_PORT}|g" \
+    -e "s|@@PREFIX@@|${PREFIX}|g" \
+    -e "s|@@DATA@@|${DATA}|g" \
     "${PREFIX}/config/apache-nexnoc.conf" \
     > /etc/apache2/sites-available/nexnoc.conf
   chmod 644 /etc/apache2/sites-available/nexnoc.conf
@@ -259,7 +269,7 @@ install_apache() {
     a2dissite 000-default >/dev/null
     ok "disabled Ubuntu default site (000-default)"
   fi
-  ok "site nexnoc (ServerName ${name} → 127.0.0.1:${WEB_PORT})"
+  ok "site nexnoc (DocumentRoot ${PREFIX}/web, /api → 127.0.0.1:${WEB_PORT})"
 
   if apache2ctl configtest >/dev/null 2>&1; then
     systemctl enable apache2 >/dev/null 2>&1 || true
@@ -375,6 +385,19 @@ cmd_check() {
     else
       warn "mod_proxy_http not loaded — a2enmod proxy proxy_http"
     fi
+    if apache2ctl -M 2>/dev/null | grep -q rewrite_module; then
+      ok "mod_rewrite loaded"
+    else
+      warn "mod_rewrite not loaded — a2enmod rewrite"
+    fi
+    if [[ -f /etc/apache2/sites-available/nexnoc.conf ]]; then
+      if grep -q 'DocumentRoot' /etc/apache2/sites-available/nexnoc.conf \
+        && grep -q 'ProxyPass        /api/' /etc/apache2/sites-available/nexnoc.conf; then
+        ok "vhost serves web/ and proxies /api/"
+      else
+        warn "vhost still proxies the whole site — re-run setup.sh to refresh Apache"
+      fi
+    fi
     if [[ -e /etc/apache2/sites-enabled/000-default.conf ]]; then
       warn "000-default still enabled — Apache serves the Ubuntu index for unmatched Host headers"
     else
@@ -382,6 +405,9 @@ cmd_check() {
     fi
   fi
   if [[ -x "${PREFIX}/scripts/nexnoc-svc" && -f /etc/sudoers.d/nexnoc-svc ]]; then
+    if grep -q 'nexnoc-svc \*' /etc/sudoers.d/nexnoc-svc; then
+      warn "sudoers.d/nexnoc-svc still has a trailing * — re-run setup.sh update"
+    fi
     if sudo -u nexnoc sudo -n "${PREFIX}/scripts/nexnoc-svc" status nexnoc-web >/dev/null 2>&1; then
       ok "Admin service helper works as nexnoc"
     else
@@ -389,6 +415,12 @@ cmd_check() {
     fi
   else
     warn "Admin → Services helper missing — re-run setup.sh"
+  fi
+  nnp="$(systemctl show -p NoNewPrivileges --value nexnoc-web 2>/dev/null || true)"
+  if [[ "${nnp}" == "yes" ]]; then
+    warn "nexnoc-web has NoNewPrivileges — sudo cannot work from the API; re-run setup.sh update"
+  elif [[ "${nnp}" == "no" ]]; then
+    ok "nexnoc-web can sudo (NoNewPrivileges off)"
   fi
 
   if curl -fsS --max-time 3 "http://127.0.0.1:${WEB_PORT}/api/state" >/dev/null 2>&1; then
@@ -453,7 +485,7 @@ Setup complete.
   Secrets: ${ETC}/nexnoc.env
   DB:      ${DATA}/noc.db
   Tiles:   ${DATA}/tiles     (empty until you run scripts/fetch_tiles.py)
-  Apache:  http://${name}/   (proxies 127.0.0.1:${WEB_PORT})
+  Apache:  http://${name}/   (site from ${PREFIX}/web; /api → 127.0.0.1:${WEB_PORT})
   Kiosk:   http://${name}/kiosk
 
 Next:
