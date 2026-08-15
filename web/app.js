@@ -302,16 +302,6 @@
       .map(String);
   }
 
-  function cityHopId(sourceKey, destKey) {
-    const a = sourceKey != null ? String(sourceKey) : "";
-    const b = destKey != null ? String(destKey) : "";
-    if (!a || !b) return null;
-    return (state.hops || []).find((h) => {
-      const ends = new Set(hopEndIds(h));
-      return ends.has(a) && ends.has(b);
-    })?.id || null;
-  }
-
   function sitePairHops() {
     const sites = new Map((state.sites || []).map((s) => [s.id, s]));
     const buckets = new Map();
@@ -326,18 +316,21 @@
       if (hopDistance(aLat, aLng, bLat, bLng) < 0.0001) return;
       const aKey = f.source_site_id || `src:${f.source_device_id}`;
       const bKey = f.dest_site_id || `dst:${f.dest_city_key || f.dest_label || "x"}`;
+      const aName = sa?.name || f.source_site_name || "Source";
+      const bName = sb?.name || f.dest_site_name || f.dest_display || "Destination";
       const key = String(aKey) < String(bKey) ? `${aKey}:${bKey}` : `${bKey}:${aKey}`;
-      const parentId = cityHopId(f.source_city_key, f.dest_city_key);
       const bucket = buckets.get(key) || {
-        id: parentId || `pair:${key}`,
+        id: `pair:${key}`,
         city_a_id: f.source_city_key,
         city_b_id: f.dest_city_key,
-        city_a_name: f.source_city_name || f.source_site_name,
-        city_b_name: f.dest_city_name || f.dest_site_name,
+        city_a_name: f.source_city_name || aName,
+        city_b_name: f.dest_city_name || bName,
+        pair_a_name: String(aKey) < String(bKey) ? aName : bName,
+        pair_b_name: String(aKey) < String(bKey) ? bName : aName,
         source_city_id: f.source_city_key,
         dest_city_id: f.dest_city_key,
-        source_city_name: f.source_city_name || f.source_site_name,
-        dest_city_name: f.dest_city_name || f.dest_site_name,
+        source_city_name: f.source_city_name || aName,
+        dest_city_name: f.dest_city_name || bName,
         source_lat: aLat,
         source_lng: aLng,
         dest_lat: bLat,
@@ -755,13 +748,17 @@
     return out;
   }
 
+  function isSitePairHop(hop) {
+    return String(hop && hop.id || "").startsWith("pair:");
+  }
+
   function trunkFlows(hop) {
     const ids = hop.flow_ids || [];
     if (ids.length) {
       const want = new Set(ids.map(String));
-      const matched = (state.flows || []).filter((f) => want.has(String(f.id)));
-      if (matched.length) return matched;
+      return (state.flows || []).filter((f) => want.has(String(f.id)));
     }
+    if (isSitePairHop(hop)) return [];
     const ends = new Set(hopEndIds(hop));
     return (state.flows || []).filter((f) =>
       f.source_city_key && f.dest_city_key
@@ -909,9 +906,13 @@
         `).join("")
       : `<p class="muted">No built paths on this trunk.</p>`;
 
+    const title = isSitePairHop(hop) && (hop.pair_a_name || hop.pair_b_name)
+      ? `${hop.pair_a_name} — ${hop.pair_b_name}`
+      : `${hop.city_a_name || hop.source_city_name} — ${hop.city_b_name || hop.dest_city_name}`;
+    const scope = isSitePairHop(hop) ? "between these sites" : "on this trunk";
     panel.innerHTML = `
-      <h2>${escapeHtml(hop.city_a_name || hop.source_city_name)} — ${escapeHtml(hop.city_b_name || hop.dest_city_name)}</h2>
-      <p class="muted">${flows.length} path${flows.length === 1 ? "" : "s"} on this trunk${perspectiveCity ? ` · ${escapeHtml(perspectiveCity.name)} devices` : ""}</p>
+      <h2>${escapeHtml(title)}</h2>
+      <p class="muted">${flows.length} path${flows.length === 1 ? "" : "s"} ${scope}${perspectiveCity ? ` · ${escapeHtml(perspectiveCity.name)} devices` : ""}</p>
       <p>${badge(hop.status)}</p>
       ${picker}
       ${body}
