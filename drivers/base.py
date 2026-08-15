@@ -21,7 +21,30 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Sequence
+
+
+@dataclass(frozen=True)
+class ConnectorSpec:
+    """One physical BNC/SDI (or net/mgmt) connector the chassis ships with.
+
+    capability:
+      input      — fixed SDI in; direction cannot change
+      output     — fixed SDI out
+      assignable — operator (or a path) sets input / output / unused
+    kind: sdi | net | mgmt  (physical family; SDI direction is capability)
+    """
+    name: str
+    capability: str
+    kind: str = "sdi"
+
+
+def sdi_layout(count: int, capability: str = "assignable",
+               prefix: str = "BNC") -> tuple[ConnectorSpec, ...]:
+    return tuple(
+        ConnectorSpec(name=f"{prefix} {i}", capability=capability, kind="sdi")
+        for i in range(1, count + 1)
+    )
 
 
 @dataclass
@@ -43,6 +66,27 @@ class CollectResult:
     firmware_version: Optional[str] = None
     error: Optional[str] = None
     modules: list[InventoryItem] = field(default_factory=list)
+
+
+# SNMPv2-Trap generic OIDs (snmpTraps). Shared by trapd + Driver.interpret_trap.
+COLD_START = "1.3.6.1.6.3.1.1.5.1"
+WARM_START = "1.3.6.1.6.3.1.1.5.2"
+LINK_DOWN = "1.3.6.1.6.3.1.1.5.3"
+LINK_UP = "1.3.6.1.6.3.1.1.5.4"
+AUTH_FAIL = "1.3.6.1.6.3.1.1.5.5"
+
+
+@dataclass
+class TrapResult:
+    """How a driver wants a received trap applied to device status.
+
+    holds=True means a later healthy API/SNMP poll must not clear this
+    (linkDown stays degraded until linkUp/coldStart/warmStart).
+    device_status None = store the trap, do not change status.
+    """
+    device_status: Optional[str] = None  # healthy | degraded | None
+    error: Optional[str] = None
+    holds: bool = False
 
 
 @dataclass
@@ -95,6 +139,8 @@ class Driver(ABC):
 
     Class-level attributes describe WHAT the driver handles (used for
     matching); instance methods describe HOW it talks to a device.
+    `notes` is operator-facing documentation (catalog + inventory UI),
+    not a matching field. See docs/DRIVERS.md.
     """
 
     # --- identity & matching criteria (class-level, override in subclasses) ---
@@ -102,8 +148,10 @@ class Driver(ABC):
     vendor: str                 # must match a value in db.VALID_VENDORS
     supported_models: Optional[list[str]] = None   # substrings matched case-insensitively
                                                      # against Device.model; None = any model
-    firmware_min: Optional[str] = None              # inclusive; None = no lower bound
-    firmware_max: Optional[str] = None              # inclusive; None = no upper bound
+    firmware_min: Optional[str] = None              # inclusive (>=); None = no lower bound
+    firmware_max: Optional[str] = None              # inclusive (<=); None = no upper bound
+    notes: Optional[str] = None                     # operator-facing: what this driver covers
+    connectors: Sequence[ConnectorSpec] = ()        # chassis BNC/SDI template stamped on create
 
     @classmethod
     def is_default_for_vendor(cls) -> bool:
@@ -146,6 +194,63 @@ class Driver(ABC):
         """Optional inventory/health snapshot. Default: nothing to collect.
         Must not be required for ping() to succeed."""
         return None
+
+    def snmp_ping(self, target) -> bool:
+        """MIB-2 sysDescr reachability. Override only if a vendor needs a
+        different cheap SNMP check. Must not raise."""
+        from drivers.snmp_util import snmp_ping as _snmp_ping
+        try:
+            return bool(_snmp_ping(target.host, target=target))
+        except Exception:  # noqa: BLE001
+            return False
+
+    def snmp_collect(self, target) -> Optional[CollectResult]:
+        """Optional SNMP inventory/health. Default: sysDescr GET only.
+
+        Do not invent vendor enterprise OIDs here — override on a driver
+        after the device's own MIB is confirmed."""
+        from drivers.snmp_util import SYS_DESCR_OID, SnmpError, snmp_get
+        try:
+            descr = snmp_get(target.host, target=target, oid=SYS_DESCR_OID)
+        except SnmpError as exc:
+            return CollectResult(device_status="degraded", error=str(exc))
+        except Exception as exc:  # noqa: BLE001
+            return CollectResult(device_status="degraded", error=str(exc))
+        preview = (descr or "").strip().replace("\n", " ")[:80]
+        return CollectResult(
+            device_status="healthy",
+            error=None,
+            modules=[InventoryItem(
+                slot="snmp", module_type="sysDescr",
+                serial=preview, status="healthy",
+            )],
+        )
+
+    @classmethod
+    def interpret_trap(cls, trap_oid: str = "", varbinds=None,
+                       generic_trap: Optional[int] = None) -> "TrapResult":
+        """Map a trap onto status. Default: generic MIB-2 snmpTraps.
+
+        Override to handle a vendor's enterprise OIDs once those are
+        confirmed (do not invent them). Unknown OIDs are stored only."""
+        del varbinds  # reserved for vendor overrides
+        oid = trap_oid or ""
+        gen = generic_trap
+        if oid == LINK_DOWN or gen == 2:
+            return TrapResult(
+                device_status="degraded",
+                error=f"SNMP trap {oid or 'linkDown'}",
+                holds=True,
+            )
+        if oid == AUTH_FAIL or gen == 4:
+            return TrapResult(
+                device_status="degraded",
+                error="SNMP authenticationFailure trap",
+                holds=True,
+            )
+        if oid in (LINK_UP, COLD_START, WARM_START) or gen in (0, 1, 3):
+            return TrapResult(device_status="healthy", holds=False)
+        return TrapResult()
 
 
 def resolve_driver(
@@ -204,3 +309,36 @@ def resolve_driver(
         f"and no default driver is registered for vendor {vendor!r}. "
         f"Registered drivers for this vendor: {[d.driver_id for d in vendor_drivers]}"
     )
+
+
+def driver_catalog(driver_registry: list[type]) -> list[dict]:
+    """Public inventory of drivers: matching rules + BNC template."""
+    out = []
+    for cls in driver_registry:
+        out.append({
+            "driver_id": cls.driver_id,
+            "vendor": cls.vendor,
+            "supported_models": list(cls.supported_models) if cls.supported_models else None,
+            "firmware_min": cls.firmware_min,
+            "firmware_max": cls.firmware_max,
+            "notes": cls.notes,
+            "is_default": cls.is_default_for_vendor(),
+            "connectors": [
+                {"name": c.name, "capability": c.capability, "kind": c.kind}
+                for c in (cls.connectors or ())
+            ],
+        })
+    return out
+
+
+def kind_for_connector(capability: str, direction: str = "", family: str = "sdi") -> str:
+    """Map capability/direction onto the ports.kind CHECK values."""
+    if family == "net":
+        return "net"
+    if family == "mgmt":
+        return "mgmt"
+    if capability == "input" or direction == "input":
+        return "sdi_in"
+    if capability == "output" or direction == "output":
+        return "sdi_out"
+    return "other"

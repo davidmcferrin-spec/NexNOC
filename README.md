@@ -23,15 +23,10 @@ correctly for it, without changing which *vendor* it is.
 
 Each vendor currently has exactly one driver — its **default** (no
 model/firmware constraints, matches anything from that vendor). When you
-need different handling for a specific model or firmware range:
-
-1. Write a new driver class narrower than the default (`supported_models`
-   and/or `firmware_min`/`firmware_max` set).
-2. Register it in `drivers/registry.py`, listed *before* the default (see
-   `drivers/base.py:resolve_driver()` for the tie-break rule).
-3. Nothing else changes — `poller.py`, `db.py`, and every other driver are
-   untouched. Existing devices keep using whatever driver actually matches
-   their `model`/`firmware_version`.
+need different handling for a specific model or firmware range, write a
+narrower class (`supported_models` and/or inclusive `firmware_min` /
+`firmware_max`) and register it *before* the default. Full how-to:
+**[docs/DRIVERS.md](docs/DRIVERS.md)**.
 
 A device can also be pinned to an exact driver via `driver_override` in the
 DB/config — bypasses auto-resolution entirely, for the case where matching
@@ -56,7 +51,7 @@ devices.resolved_driver (informational)   .ping() / .discover() / ...
 | **Appear** (X Platform: X10/X20/X5/XM/XC5000/XC5100) | `appear.x_platform.default` | `direct_api` (Prometheus text) | Confirmed scrapes: `/prometheus/{system,product,ipgateway,alarms}/metrics` |
 | **Haivision** (Makito X4 / X / MX1 / FX) | `haivision.makito_x.default` | `direct_api` (JSON/HTTP) | Makito X4 1.8.0 `/apidoc` confirmed: session `POST /apis/authentication`, `GET /apis/status` + videnc/audenc/streams/vidin |
 | **Net Insight** (Nimbra MSR/Edge/600/1000/400/680) | `net_insight.nimbra.default` | `direct_snmp` (per-node), or `via_nms` (Nimbra Vision) | SNMP path only; Vision REST driver **not implemented** — see `drivers/net_insight.py` |
-| Anything else | — | — | Add a `drivers/<name>.py` implementing `Driver` (see `drivers/base.py`) |
+| Anything else | — | — | Add a `drivers/<name>.py` implementing `Driver` — see [docs/DRIVERS.md](docs/DRIVERS.md) |
 
 Vendors are structurally different, not just different API shapes — see
 each `drivers/*.py` module docstring before assuming a pattern from one
@@ -142,7 +137,15 @@ decommission explicitly instead).
 
 ```bash
 python3 poller.py --config config.json --db /var/lib/nexnoc/noc.db
+python3 poller.py --verbose --log-file poller.log --config config.json --db noc.db
 ```
+
+Each cycle logs `Polling N device(s)` and a summary
+(`api X/Y ok, snmp X/Y ok`). `--verbose` (or `NEXNOC_VERBOSE=1`) adds a
+DEBUG line per device: `api=ok/fail/skip snmp=… collect=… status=…`.
+`--log-file` (or `NEXNOC_LOG_FILE`) writes a rotating file in addition to
+stdout. Production writes `/var/log/nexnoc/poller.log` and
+`journalctl -u nexnoc-poller -f`.
 
 Polls every device concurrently on `poll_interval_seconds` (config.json,
 default 30s), resolving and dispatching to the right driver automatically
@@ -150,11 +153,21 @@ per device. A device flips to `unreachable` only after 3 consecutive
 missed polls (`CONSECUTIVE_FAILURES_THRESHOLD` in poller.py) — avoids
 status-flapping on a single dropped packet.
 
+All three channels are capable per device (operator can opt out):
+
+1. **Vendor API** — `ping()` + `collect()` on the resolved driver.
+2. **SNMP GET** — `snmp_ping()` / `snmp_collect()` (default: MIB-2
+   `sysDescr`). Runs when `snmp_enabled` is on *and* community or v3
+   creds exist. New devices default `snmp_enabled` on.
+3. **SNMP traps** — `nexnoc-trapd` on UDP 162 dispatches through
+   `Driver.interpret_trap()`. Generic linkDown/authFailure hold
+   `degraded` until linkUp/coldStart/warmStart; a healthy poll does not
+   clear a held trap. Vendor enterprise OIDs are stored until a driver
+   override is confirmed.
+
 Production uses `nexnoc-poller.service` / `nexnoc-web.service` /
 `nexnoc-trapd.service` from `setup.sh`, with credentials in
-`/etc/nexnoc/nexnoc.env` (`EnvironmentFile=`, mode 0640). SNMP GET
-(v1/v2c/v3) runs alongside the vendor API when a device has SNMP
-enabled. Traps (v1/v2c) land on UDP 162 via `nexnoc-trapd`; SNMPv3
+`/etc/nexnoc/nexnoc.env` (`EnvironmentFile=`, mode 0640). SNMPv3
 traps can be handed off from `snmptrapd` — see
 `config/snmptrapd.nexnoc.conf`. Management IPs must be unique (empty
 host is allowed many times for pending boxes).
@@ -166,11 +179,10 @@ python3 server.py --config config.json --db /var/lib/nexnoc/noc.db --port 8080
 ```
 
 `--config` is optional (bootstraps if given). Open http://127.0.0.1:8080
-for the map / links / inventory views, or http://127.0.0.1:8080/kiosk for
-the wall-board layout. The page polls `/api/state` every 5 seconds — no
-WebSocket stack. Bind defaults to localhost; this is a read-only ops view
-with no auth gate, so do not expose it past the management LAN without a
-reverse proxy.
+and sign in (seeded `admin` / `password` or `user` / `password` — change
+both on first login). `/kiosk` is an anonymous wall board and stays
+public. The page polls `/api/state` every 5 seconds — no WebSocket stack.
+Bind defaults to localhost.
 
 The map is Leaflet (vendored in `web/vendor/leaflet/`, no npm). Dev uses
 Carto Dark Matter tiles from the public CDN — pan, zoom, real geography.
@@ -218,6 +230,38 @@ mocks). Includes a dedicated suite (`tests/test_driver_resolution.py`) for
 the resolution logic itself, using fixture drivers independent of the real
 Appear/Haivision/Net Insight ones.
 
+## Authentication and roles
+
+Local + LDAPS login, same model as XPMON-Dashboard. Users and sessions live
+in SQLite. Seeded on first start:
+
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `password` | Administrator |
+| `user` | `password` | Viewer |
+
+Change both on first login (`must_change_password`). Roles OR together;
+per-user grant/deny overrides win.
+
+| Role | Map / links / inventory | Inventory writes | Users / LDAP |
+|---|---|---|---|
+| viewer | read | | |
+| operator | read | yes (including `nexnoc.env` secrets) | |
+| admin | read | yes | yes |
+
+`/kiosk` stays anonymous. `GET /api/state` and `GET /api/time` stay public
+so the wall board can poll; unauthenticated `/api/state` omits credential
+slot names and `*_set` flags. `GET /` and all writes require a session.
+
+LDAP uses LDAPS user bind via system `ldapsearch` (`apt install ldap-utils`).
+Type only the sAMAccountName; set bind template to `{username}@nexstar.tv`.
+AD groups map to roles under **Admin → LDAP**. Group-only users get an
+ephemeral session (no row until an admin adds them).
+
+Idle timeout defaults to 120 minutes (Admin → Session). Audit log is
+`audit.jsonl` next to the DB (or `/var/lib/nexnoc/audit.jsonl`); inventory
+writes are refused if the audit line cannot be written.
+
 ## Security notes
 
 - Credentials are never stored in the DB or `config.json` — only the *names*
@@ -227,8 +271,8 @@ Appear/Haivision/Net Insight ones.
   appliances commonly ship self-signed certs — an explicit per-device
   opt-out, not a silent global default.
 - Routing control (Phase 4) is intentionally **not** built on the same code
-  path as the read-only poller. It needs its own auth gate, a confirm/diff
-  step, and an audit trail (`routing_audit` table already in schema.sql).
+  path as the read-only poller. Permission names (`view_routing`,
+  `propose_routing`, `execute_routing`) are reserved on the admin role.
 
 ## Files
 
@@ -236,6 +280,7 @@ Appear/Haivision/Net Insight ones.
 |---|---|
 | `schema.sql` | Full DB schema for all phases (Phase 2+ tables created now, unused until built) |
 | `db.py` | SQLite data access layer — `Device` is vendor/driver-agnostic |
+| `docs/DRIVERS.md` | How to add a vendor, model, or firmware-ranged driver |
 | `drivers/base.py` | `Driver` contract + `resolve_driver()` matching logic |
 | `drivers/registry.py` | The list of every driver NexNOC knows about |
 | `drivers/http_util.py` | Shared HTTP/JSON transport (Appear, Haivision) |
@@ -258,27 +303,21 @@ Appear/Haivision/Net Insight ones.
 
 ## Adding a new driver
 
-**For a new vendor entirely:**
-1. Add the vendor name to `db.VALID_VENDORS`.
-2. Create `drivers/<name>.py` implementing `Driver` (`drivers/base.py`) —
-   at minimum `ping()`; `discover()` if a probing approach makes sense.
-   Leave `supported_models`/`firmware_min`/`firmware_max` unset so it's
-   that vendor's default.
-3. Register it in `drivers/registry.py`.
-4. If it's HTTP-based, compose a `drivers.http_util.JsonHttpClient`. If
-   SNMP-based, use `drivers.snmp_util`. If neither fits (e.g. a vendor whose
-   only integration point is a separate NMS), model it after
-   `drivers/net_insight.py`'s `via_nms` pattern.
-5. Add device config fields to `poller.py:build_driver()` if the vendor
-   needs constructor args beyond what `devices` already has columns for.
+See **[docs/DRIVERS.md](docs/DRIVERS.md)** for the full how-to (matching
+rules, inclusive `firmware_min` / `firmware_max`, `notes`, checklists,
+and worked examples).
 
-**For a new model or firmware range within an existing vendor:**
-1. Write a new class in that vendor's module (or a new file) with
-   `supported_models` and/or `firmware_min`/`firmware_max` set narrower
-   than the default.
-2. Register it in `drivers/registry.py`, *before* the vendor's default.
-3. Devices with a matching `model`/`firmware_version` pick it up
-   automatically on the next poll; nothing else changes.
+Short version:
+
+- **New vendor:** add the slug to `db.VALID_VENDORS`, write a default
+  `Driver` in `drivers/<name>.py` (`ping()` minimum, `notes` set),
+  register it in `drivers/registry.py`, add the vendor to the inventory
+  form in `web/app.js`. Branch `poller.py:build_driver()` only if the
+  constructor args differ from HTTP or SNMP.
+- **New model or firmware range:** new class with `supported_models`
+  and/or inclusive `firmware_min` / `firmware_max`, listed *before* the
+  vendor default in `DRIVER_REGISTRY`. Devices pick it up on the next
+  poll from `model` / `firmware_version`.
 
 ## Roadmap
 

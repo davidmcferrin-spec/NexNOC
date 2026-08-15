@@ -12,8 +12,9 @@ Run (after bootstrap):
 Optionally bootstrap on start:
     python3 server.py --config config.json --db noc.db
 
-Bind defaults to 127.0.0.1. There is no auth gate - do not expose it
-past the management LAN without a reverse proxy.
+Bind defaults to 127.0.0.1. Local + LDAP login gates the main board and
+all writes. GET /kiosk, /api/state, and /api/time stay anonymous so the
+wall board works without a session.
 """
 
 from __future__ import annotations
@@ -25,15 +26,29 @@ import mimetypes
 import os
 import re
 import sys
+import time
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote, urlparse
 
+from audit import audit_log
+from auth import load_session_user, next_url, parse_query, request_is_secure, token_from_cookie
+from auth_api import AuthError, handle_auth
 from db import Database, Device, utcnow_iso
 from envfile import default_env_path
-from inventory_api import device_secret_flags, handle as handle_inventory
+from inventory_api import SECRET_KEYS, default_pin_dir, device_secret_flags, handle as handle_inventory
+from pins import BUILTIN_PINS
+
+_PUBLIC_STATE_DROP = {
+    "api_username_env", "api_password_env", "snmp_community_env",
+    "snmp_v3_user_env", "snmp_v3_auth_pass_env", "snmp_v3_priv_pass_env",
+    "nms_api_key_env",
+    "api_username_set", "api_password_set", "snmp_community_set",
+    "snmp_v3_user_set", "snmp_v3_auth_set", "snmp_v3_priv_set",
+    "credentials_ready", "snmp_ready",
+}
 
 logger = logging.getLogger("nexnoc.server")
 
@@ -116,6 +131,7 @@ def serialize_device(device: Device, site_name: str, city_name: str = "",
         "mgmt_host": device.mgmt_host,
         "access_mode": device.access_mode,
         "driver_override": device.driver_override,
+        "control_driver": device.control_driver,
         "resolved_driver": device.resolved_driver,
         "status": device.status,
         "last_seen_at": device.last_seen_at,
@@ -134,6 +150,16 @@ def serialize_device(device: Device, site_name: str, city_name: str = "",
         "snmp_v3_priv_proto": device.snmp_v3_priv_proto,
         **flags,
     }
+
+
+def strip_public_state(payload: dict) -> dict:
+    """Drop credential slot names/flags from the anonymous kiosk payload."""
+    out = dict(payload)
+    devices = []
+    for device in out.get("devices") or []:
+        devices.append({k: v for k, v in device.items() if k not in _PUBLIC_STATE_DROP})
+    out["devices"] = devices
+    return out
 
 
 def _city_key_from_site(site: dict) -> str:
@@ -199,6 +225,7 @@ def _serialize_flow(row: dict) -> dict:
         "source_port_id": row["source_port_id"],
         "source_port_name": row.get("source_port_name") or "",
         "source_port_kind": row.get("source_port_kind") or "",
+        "dest_port_id": row.get("dest_port_id"),
         "origin_device_id": row.get("origin_device_id"),
         "origin_device_name": row.get("origin_device_name") or "",
         "origin_site_name": row.get("origin_site_name") or "",
@@ -235,6 +262,7 @@ def _build_cities(sites_out: list[dict], city_rows: list[dict],
             "name": row["name"],
             "lat": row["lat"],
             "lng": row["lng"],
+            "geo_source": row.get("geo_source") or "",
             "notes": row.get("notes") or "",
             "site_ids": [],
             "device_statuses": [],
@@ -276,6 +304,7 @@ def _build_cities(sites_out: list[dict], city_rows: list[dict],
             "device_count": len(statuses),
             "devices_by_status": _count_by(statuses),
             "notes": bucket.get("notes") or "",
+            "geo_source": bucket.get("geo_source") or "",
         })
     out.sort(key=lambda c: c["name"])
     return out
@@ -383,6 +412,14 @@ def _aggregate_hops(flows_out: list[dict], cities_out: list[dict]) -> list[dict]
     return hops
 
 
+def server_clock() -> dict:
+    """Authoritative wall-clock for the dashboard (NTP-backed OS time)."""
+    return {
+        "server_time_ms": int(time.time() * 1000),
+        "server_time_utc": utcnow_iso(),
+    }
+
+
 def build_dashboard_state(db: Database, env_path: Optional[Path] = None) -> dict:
     """Single payload the frontend polls. Assembled here so tests can
     exercise status derivation without standing up HTTP."""
@@ -451,6 +488,11 @@ def build_dashboard_state(db: Database, env_path: Optional[Path] = None) -> dict
             "city_lng": site.get("city_lng"),
             "lat": site["lat"],
             "lng": site["lng"],
+            "address": site.get("address") or "",
+            "geo_source": site.get("geo_source") or "",
+            "pin_icon": site.get("pin_icon") or "building",
+            "pin_color": site.get("pin_color") or "#6aa4ff",
+            "pin_upload": site.get("pin_upload") or "",
             "notes": site.get("notes") or "",
             "status": _worst(statuses, _DEVICE_RANK) if site_devices else "unknown",
             "device_count": len(site_devices),
@@ -480,8 +522,11 @@ def build_dashboard_state(db: Database, env_path: Optional[Path] = None) -> dict
             "signals_by_status": _count_by(effective_statuses),
         })
 
+    clock = server_clock()
     return {
-        "generated_at": utcnow_iso(),
+        "generated_at": clock["server_time_utc"],
+        "server_time_ms": clock["server_time_ms"],
+        "server_time_utc": clock["server_time_utc"],
         "latest_poll_at": db.latest_poll_at(),
         "summary": {
             "sites": len(sites_out),
@@ -503,6 +548,8 @@ def build_dashboard_state(db: Database, env_path: Optional[Path] = None) -> dict
         "signals": signals_out,
         "flows": flows_out,
         "hops": hops_out,
+        "drivers": _driver_catalog(),
+        "pins": list(BUILTIN_PINS),
     }
 
 
@@ -524,6 +571,7 @@ def build_device_detail(db: Database, device_id: int,
             city_name = site["city"] or ""
     modules = [_row_dict(r) for r in db.list_modules(device_id)]
     polls = [_row_dict(r) for r in db.recent_poll_history(device_id, limit=25)]
+    traps = [_row_dict(r) for r in db.list_traps(device_id, limit=25)]
     ports = [_row_dict(r) for r in db.list_ports(device_id)]
     flows = [
         _serialize_flow(_row_dict(r))
@@ -538,6 +586,7 @@ def build_device_detail(db: Database, device_id: int,
         "ports": ports,
         "flows": flows,
         "recent_polls": polls,
+        "recent_traps": traps,
     }
 
 
@@ -609,6 +658,15 @@ def _safe_tile_path(tile_dir: Path, z: int, x: int, y: int, ext: str) -> Optiona
     return None
 
 
+def _driver_catalog() -> list[dict]:
+    from drivers.base import driver_catalog
+    from drivers.registry import DRIVER_REGISTRY
+    return driver_catalog(DRIVER_REGISTRY)
+
+
+_UPLOAD_PIN = re.compile(r"^/uploads/pins/([A-Za-z0-9._-]+)$")
+
+
 def _safe_web_path(url_path: str) -> Optional[Path]:
     rel = url_path.lstrip("/")
     if not rel or rel == "kiosk":
@@ -624,11 +682,12 @@ def _safe_web_path(url_path: str) -> Optional[Path]:
 
 
 def make_handler(db: Database, map_settings: Optional[dict] = None,
-                 env_path: Optional[Path] = None):
+                 env_path: Optional[Path] = None, pin_dir: Optional[Path] = None):
     settings = map_settings or resolve_map_settings()
     public_map = settings["public"]
     tile_dir = settings.get("tile_dir")
     secrets_path = Path(env_path) if env_path else default_env_path()
+    uploads = Path(pin_dir) if pin_dir else default_pin_dir()
 
     class DashboardHandler(BaseHTTPRequestHandler):
         server_version = "NexNOC/0.2"
@@ -636,14 +695,28 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
         def log_message(self, fmt: str, *args) -> None:
             logger.info("%s - %s", self.address_string(), fmt % args)
 
+        def _current_user(self):
+            token = token_from_cookie(self.headers.get("Cookie") or "")
+            return load_session_user(db, token), token
+
+        def _client_ip(self) -> str:
+            forwarded = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+            return forwarded or self.address_string()
+
         def do_GET(self) -> None:
             parsed = urlparse(self.path)
             path = unquote(parsed.path)
+            user, token = self._current_user()
 
             if path == "/api/state":
                 payload = build_dashboard_state(db, secrets_path)
                 payload["map"] = public_map
+                if not user:
+                    payload = strip_public_state(payload)
                 self._send_json(200, payload)
+                return
+            if path == "/api/time":
+                self._send_json(200, server_clock())
                 return
             tile_match = _TILE_PATH.match(path)
             if tile_match:
@@ -657,7 +730,25 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
                     return
                 self._send_file(target, cache="public, max-age=86400")
                 return
+            if path.startswith("/api/auth/") or path.startswith("/api/admin"):
+                query = parse_query(self.path)
+                try:
+                    status, payload, cookie = handle_auth(
+                        db, "GET", path, query, user, token,
+                        request_is_secure(self.headers), self._client_ip(),
+                    )
+                except AuthError as exc:
+                    self._send_json(exc.status, {"error": str(exc)})
+                    return
+                except LookupError as exc:
+                    self._send_json(404, {"error": str(exc)})
+                    return
+                self._send_json(status, payload, cookie=cookie)
+                return
             if path.startswith("/api/devices/"):
+                if not user:
+                    self._send_json(401, {"error": "login required"})
+                    return
                 rest = path[len("/api/devices/"):]
                 if rest.isdigit():
                     detail = build_device_detail(db, int(rest), secrets_path)
@@ -670,6 +761,29 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
                 return
             if path.startswith("/api/"):
                 self._send_json(404, {"error": "not found"})
+                return
+            pin_match = _UPLOAD_PIN.match(path)
+            if pin_match:
+                target = (uploads / pin_match.group(1)).resolve()
+                try:
+                    target.relative_to(uploads.resolve())
+                except ValueError:
+                    self._send_json(404, {"error": "not found"})
+                    return
+                if not target.is_file():
+                    self.send_error(404, "pin not found")
+                    return
+                self._send_file(target, cache="public, max-age=86400")
+                return
+
+            if path in ("/login", "/login.html"):
+                login = WEB_ROOT / "login.html"
+                if login.is_file():
+                    self._send_file(login)
+                    return
+            if path in ("/", "/index.html") and not user:
+                nxt = next_url(path if path != "/" else "/")
+                self._redirect(f"/login?next={nxt}")
                 return
 
             target = _safe_web_path(path)
@@ -698,8 +812,42 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)})
                 return
+            user, token = self._current_user()
+            if path.startswith("/api/auth/") or path.startswith("/api/admin"):
+                try:
+                    status, payload, cookie = handle_auth(
+                        db, method, path, body, user, token,
+                        request_is_secure(self.headers), self._client_ip(),
+                    )
+                except AuthError as exc:
+                    self._send_json(exc.status, {"error": str(exc)})
+                    return
+                except LookupError as exc:
+                    self._send_json(404, {"error": str(exc)})
+                    return
+                self._send_json(status, payload, cookie=cookie)
+                return
+            if not user:
+                self._send_json(401, {"error": "login required"})
+                return
+            if user.get("must_change_password"):
+                self._send_json(403, {"error": "password change required"})
+                return
+            perms = user.get("permissions") or {}
+            if not perms.get("manage_inventory"):
+                self._send_json(403, {"error": "access denied"})
+                return
+            if any(key in body for key in SECRET_KEYS) and not perms.get("manage_credentials"):
+                self._send_json(403, {"error": "access denied"})
+                return
+            if not audit_log(
+                "inventory", user, self._client_ip(),
+                {"method": method, "path": path}, ok=True,
+            ):
+                self._send_json(500, {"error": "audit write failed"})
+                return
             try:
-                status, payload = handle_inventory(db, secrets_path, method, path, body)
+                status, payload = handle_inventory(db, secrets_path, method, path, body, uploads)
             except LookupError as exc:
                 self._send_json(404, {"error": str(exc)})
                 return
@@ -729,14 +877,23 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
                 raise ValueError("JSON body must be an object")
             return data
 
-        def _send_json(self, status: int, payload: dict) -> None:
+        def _send_json(self, status: int, payload: dict, cookie: Optional[str] = None) -> None:
             body = json.dumps(payload, default=str).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(body)))
+            if cookie:
+                self.send_header("Set-Cookie", cookie)
             self.end_headers()
             self.wfile.write(body)
+
+        def _redirect(self, location: str) -> None:
+            self.send_response(302)
+            self.send_header("Location", location)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
 
         def _send_file(self, path: Path, cache: str = "no-cache") -> None:
             data = path.read_bytes()
@@ -753,11 +910,12 @@ def make_handler(db: Database, map_settings: Optional[dict] = None,
 
 def serve(db: Database, host: str, port: int,
           map_settings: Optional[dict] = None,
-          env_path: Optional[Path] = None) -> None:
+          env_path: Optional[Path] = None,
+          pin_dir: Optional[Path] = None) -> None:
     if not WEB_ROOT.is_dir():
         raise FileNotFoundError(f"web/ directory missing at {WEB_ROOT}")
     settings = map_settings or resolve_map_settings()
-    handler = make_handler(db, settings, env_path)
+    handler = make_handler(db, settings, env_path, pin_dir)
     httpd = ThreadingHTTPServer((host, port), handler)
     src = settings["public"]["source"]
     tiles = settings["public"]["tile_url"]
@@ -785,6 +943,9 @@ def main() -> None:
     parser.add_argument("--env-file", dest="env_file",
                         default=os.environ.get("NEXNOC_ENV_FILE", ""),
                         help="Env file for credential values (default: /etc/nexnoc/nexnoc.env or config/nexnoc.env)")
+    parser.add_argument("--pin-dir", dest="pin_dir",
+                        default=os.environ.get("NEXNOC_PIN_DIR", ""),
+                        help="Directory for uploaded site pin images")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -803,9 +964,10 @@ def main() -> None:
     map_cfg = load_map_section(args.map_config or args.config)
     map_settings = resolve_map_settings(map_cfg, args.tile_dir)
     env_path = Path(args.env_file) if args.env_file else default_env_path()
+    pin_dir = Path(args.pin_dir) if args.pin_dir else default_pin_dir()
 
     try:
-        serve(db, args.host, args.port, map_settings, env_path)
+        serve(db, args.host, args.port, map_settings, env_path, pin_dir)
     except OSError as exc:
         print(f"Cannot bind {args.host}:{args.port}: {exc}", file=sys.stderr)
         sys.exit(1)

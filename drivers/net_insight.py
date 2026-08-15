@@ -41,6 +41,10 @@ from drivers.snmp_util import SnmpTarget, snmp_ping
 class NetInsightNimbraDriver(Driver):
     driver_id = "net_insight.nimbra.default"
     vendor = "net_insight"
+    notes = (
+        "Default Nimbra per-node SNMP driver. via_nms (Nimbra Vision REST) is "
+        "not implemented. Pull the device enterprise MIB before adding vendor OIDs."
+    )
     # Default for the vendor - no model/firmware constraints.
 
     def __init__(self, host: str, snmp_community: Optional[str] = None,

@@ -346,15 +346,23 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(self.db.get_device(a).mgmt_host, "")
         self.assertEqual(self.db.get_device(b).mgmt_host, "")
 
-    def test_snmp_enabled_defaults_from_community(self):
+    def test_snmp_enabled_defaults_on(self):
         site_id = self.db.add_site("Chicago")
         device_id = self.db.add_device(
             site_id=site_id, name="CHI-X20-1", vendor="appear", mgmt_host="10.0.1.10",
-            snmp_community_env="CHI_X20_1_SNMP",
         )
         device = self.db.get_device(device_id)
         self.assertTrue(device.snmp_enabled)
+        self.assertTrue(device.snmp_trap_enabled)
         self.assertEqual(device.snmp_version, "2c")
+
+    def test_snmp_enabled_can_be_opted_out(self):
+        site_id = self.db.add_site("Chicago")
+        device_id = self.db.add_device(
+            site_id=site_id, name="CHI-X20-1", vendor="appear", mgmt_host="10.0.1.10",
+            snmp_enabled=False,
+        )
+        self.assertFalse(self.db.get_device(device_id).snmp_enabled)
 
     def test_merge_devices_moves_ports_and_flows(self):
         site_id = self.db.add_site("New York")
@@ -394,6 +402,31 @@ class TestDatabase(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             self.db.merge_devices(dev, dev)
+
+    def test_delete_city_refused_while_sites_remain(self):
+        city = self.db.add_city("Washington", lat=38.9, lng=-77.0)
+        self.db.add_site("400 N Capitol", city="Washington", city_id=city, lat=38.9, lng=-77.0)
+        with self.assertRaises(ValueError) as ctx:
+            self.db.delete_city(city)
+        self.assertIn("site", str(ctx.exception).lower())
+        self.assertIsNotNone(self.db.get_city(city))
+
+    def test_delete_city_ok_when_empty(self):
+        city = self.db.add_city("Temporary")
+        self.assertTrue(self.db.delete_city(city))
+        self.assertIsNone(self.db.get_city(city))
+
+    def test_port_capability_and_direction(self):
+        site = self.db.add_site("DC")
+        dev = self.db.add_device(site_id=site, name="DC-HAI-40", vendor="haivision",
+                                 mgmt_host="10.1.1.1")
+        pid = self.db.add_port(dev, "BNC 1", kind="other", capability="assignable",
+                               direction="unused")
+        self.db.update_port(pid, direction="input", kind="sdi_in")
+        row = self.db.get_port(pid)
+        self.assertEqual(row["capability"], "assignable")
+        self.assertEqual(row["direction"], "input")
+        self.assertEqual(row["kind"], "sdi_in")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@
 #   /etc/nexnoc/nexnoc.env   credentials (0600/0640, never in git)
 #   /var/lib/nexnoc/noc.db   SQLite
 #
-# Python is stdlib only — no pip. SNMP uses the system snmpget/snmpwalk.
+# Python is stdlib only — no pip. SNMP uses snmpget; LDAP uses ldapsearch.
 # Database is SQLite (see schema.sql). MySQL is not wired up.
 #
 # Env overrides: NEXNOC_PREFIX NEXNOC_DATA NEXNOC_ETC NEXNOC_LOG
@@ -111,11 +111,12 @@ install_packages() {
     python3 \
     apache2 \
     snmp \
+    ldap-utils \
     sqlite3 \
     rsync \
     curl \
     ca-certificates
-  ok "python3 apache2 snmp sqlite3 rsync"
+  ok "python3 apache2 snmp ldap-utils sqlite3 rsync"
 }
 
 ensure_user_and_dirs() {
@@ -310,6 +311,8 @@ cmd_check() {
     || warn "apache2ctl missing"
   command -v snmpget >/dev/null && ok "snmpget present" \
     || warn "snmpget missing — apt install snmp (needed for Net Insight)"
+  command -v ldapsearch >/dev/null && ok "ldapsearch present" \
+    || warn "ldapsearch missing — apt install ldap-utils (needed for LDAP login)"
   command -v sqlite3 >/dev/null && ok "sqlite3 present" \
     || warn "sqlite3 missing"
 
@@ -395,8 +398,9 @@ Maintenance:
   sudo $0 status
   journalctl -u nexnoc-poller -u nexnoc-web -u nexnoc-trapd -f
 
-SQLite only — MySQL is not supported. Dashboard has no auth gate; keep
-Apache on the management LAN (or add TLS + a reverse-proxy auth layer).
+SQLite only — MySQL is not supported. Sign in at / (admin/password or
+user/password — change on first login). /kiosk stays anonymous. LDAP
+needs ldap-utils and Admin → LDAP.
 EOF
 }
 

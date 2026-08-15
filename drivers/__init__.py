@@ -18,7 +18,7 @@ and an optional explicit Device.driver_override.
 
 Adding a driver for a new model or firmware range: write the class in the
 relevant vendor module (or a new file), set supported_models/firmware_min/
-firmware_max narrower than the vendor's default, add it to
+firmware_max narrower than the vendor's default, set notes, add it to
 DRIVER_REGISTRY in registry.py ahead of the default. No changes needed to
-poller.py, db.py, or any other driver.
+poller.py, db.py, or any other driver. Full how-to: docs/DRIVERS.md.
 """

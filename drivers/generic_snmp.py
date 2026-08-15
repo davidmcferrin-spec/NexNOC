@@ -10,6 +10,10 @@ from drivers.snmp_util import SnmpTarget, snmp_ping
 class GenericSnmpDriver(Driver):
     driver_id = "generic.snmp.default"
     vendor = "generic_snmp"
+    notes = (
+        "MIB-2 sysDescr reachability for boxes with no vendor API driver yet. "
+        "Override with a real vendor driver once endpoints or OIDs are confirmed."
+    )
 
     def __init__(self, host: str, snmp_community: Optional[str] = None,
                  snmp_port: int = 161, snmp_timeout: float = 3.0,

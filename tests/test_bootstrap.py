@@ -133,7 +133,10 @@ class TestBootstrap(unittest.TestCase):
         self.assertEqual(len(flows), 2)
         dests = {f["dest_site_name"] for f in flows}
         self.assertEqual(dests, {"Chicago", "New York"})
-        self.assertEqual(len(self.db.list_ports(self.db.list_devices()[0].id)), 1)
+        names = {p["name"] for p in self.db.list_ports(self.db.list_devices()[0].id)}
+        self.assertIn("SDI-1", names)
+        self.assertIn("BNC 1", names)
+        self.assertEqual(len(names), 21)
 
     def test_bootstrap_cities_and_two_sites(self):
         cfg = _config()
@@ -222,6 +225,44 @@ class TestBootstrap(unittest.TestCase):
         pending = next(d for d in self.db.list_devices() if d.name == "CHI-HAI-PENDING")
         self.assertEqual(pending.mgmt_host, "")
         self.assertFalse(pending.poll_enabled)
+
+    def test_bootstrap_stamps_driver_connectors(self):
+        cfg = _config()
+        cfg["flows"] = []
+        cfg["devices"].append({
+            "site": "Chicago",
+            "name": "CHI-HAI-1",
+            "vendor": "haivision",
+            "mgmt_host": "10.0.0.20",
+        })
+        bootstrap(self.db, cfg)
+        appear = next(d for d in self.db.list_devices() if d.name == "HSV-X20-1")
+        hai = next(d for d in self.db.list_devices() if d.name == "CHI-HAI-1")
+        appear_ports = self.db.list_ports(appear.id)
+        hai_ports = self.db.list_ports(hai.id)
+        self.assertEqual(len(appear_ports), 20)
+        self.assertEqual({p["name"] for p in appear_ports}, {f"BNC {i}" for i in range(1, 21)})
+        self.assertTrue(all(p["capability"] == "assignable" for p in appear_ports))
+        self.assertTrue(all(p["direction"] == "unused" for p in appear_ports))
+        self.assertEqual(len(hai_ports), 4)
+        self.assertEqual({p["name"] for p in hai_ports}, {"BNC 1", "BNC 2", "BNC 3", "BNC 4"})
+
+    def test_bootstrap_stores_address_and_respects_manual_geo(self):
+        cfg = _config()
+        cfg["sites"][0]["address"] = "123 Main St"
+        cfg["sites"][0]["pin_icon"] = "tower"
+        bootstrap(self.db, cfg)
+        hsv = self.db.get_site_by_name("Huntsville HQ")
+        self.assertEqual(hsv["address"], "123 Main St")
+        self.assertEqual(hsv["pin_icon"], "tower")
+        self.assertEqual(hsv["geo_source"], "manual")
+        self.db.update_site(hsv["id"], lat=1.23, lng=4.56, geo_source="manual")
+        cfg["sites"][0]["lat"] = 99.0
+        cfg["sites"][0]["lng"] = 99.0
+        bootstrap(self.db, cfg)
+        hsv = self.db.get_site_by_name("Huntsville HQ")
+        self.assertAlmostEqual(hsv["lat"], 1.23)
+        self.assertAlmostEqual(hsv["lng"], 4.56)
 
 
 if __name__ == "__main__":

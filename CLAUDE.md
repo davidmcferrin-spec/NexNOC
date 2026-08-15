@@ -14,9 +14,11 @@ license mgmt, config backup, routing control, kiosk board.
 - **Driver architecture (latest evolution)**: `vendors/` package renamed to
   `drivers/`. `drivers/base.py` defines `Driver` (ping/discover) with
   class-level matching metadata (`vendor`, `supported_models`,
-  `firmware_min`/`firmware_max`) and `resolve_driver()` which picks the most
+  `firmware_min`/`firmware_max`, `notes`) and `resolve_driver()` which picks the most
   specific matching driver, falling back to each vendor's default (a driver
-  with no model/firmware constraints). `devices` table has `firmware_version`
+  with no model/firmware constraints). Inclusive firmware bounds: `firmware_min`
+  is `>=`, `firmware_max` is `<=`; either side may be omitted. `notes` is
+  operator-facing and exported by `driver_catalog()`. How-to: docs/DRIVERS.md. `devices` table has `firmware_version`
   (for matching), `driver_override` (explicit pin, bypasses resolution), and
   `resolved_driver` (informational, written back after each poll). Adding a
   driver for a new model/firmware range is a 2-line change (write the class,
@@ -85,13 +87,41 @@ license mgmt, config backup, routing control, kiosk board.
   inventory + `/kiosk`. Stdlib `server.py`, client polls `/api/state`
   every 5s (no WebSocket). Signal health derives from host device when
   the signal row is still `unknown`. Bootstrap now also loads
-  trunks/signals from `config.json`.
+  trunks/signals from `config.json`. Display name is **NexNOC** (not
+  NEXNOC). Header clock is jammed to server time (`GET /api/time` plus
+  `server_time_ms` on `/api/state`); hover shows PC↔server offset;
+  **Alt+J** / Jam re-syncs. **Zones** opens a draggable ET/CT/MT/PT
+  overlay (position persisted in localStorage). Three consecutive
+  `/api/state` failures turn the board red (`body.backend-lost`) —
+  including status pills — because stale health is untrusted.
+  Local + LDAPS auth (`auth.py`): roles viewer / operator / admin, seeded
+  `admin`/`password` and `user`/`password`. `/kiosk` and `/api/state` stay
+  anonymous; writes and `GET /` require a session. LDAP via `ldapsearch`.
 - ⬜ Phase 3: License tracking, config backup/diff/restore — per driver,
   blocked on confirmed API/SNMP/OID details for each.
 - ⬜ Phase 4: Routing control workflow (propose/diff/confirm/execute/audit).
   Cross-vendor routing (e.g. Appear frame → Haivision encoder) needs its
   own design pass, not yet scoped.
 - ✅ Kiosk board (`/kiosk`; same polling layer as Phase 2).
+
+## Later / back burner — poller freshness (~80 devices, 10s)
+Do **not** treat flipping `poll_interval_seconds` to 10 as the fix.
+Expected fleet is ~80 devices (two national networks). Target is ~10s
+**time-to-glass**, not a 10s config knob. Today's loop already
+`asyncio.gather`s every device, then **sleeps after the slowest one
+finishes**. Appear `ping()` scrapes all four Prometheus paths and
+`collect()` does it again; Haivision builds a new driver (and re-logins)
+every poll; HTTP timeout is 5s (Appear ping can burn ~20s if paths hang);
+default `run_in_executor` pool is `min(32, CPU+4)`. A handful of dark
+IPs will miss a 10s SLA.
+
+When visiting this: keep stdlib + SQLite + **one poller process**. Work
+order: overlapping per-device cadence (a hung box must not delay the
+X20s), ~32 in-flight cap, cheap ping vs full collect, ~2s timeouts,
+Haivision session reuse, SQLite WAL. Keep 3-miss hysteresis (~30s to
+`unreachable`). Sub-10s breaks stay on traps (`nexnoc-trapd`). Board
+`/api/state` every 5s is fine (typical notice ~10–15s after the poller
+writes). Do not shard, add MySQL, or add per-site agents at this size.
 
 ## Conventions used in this codebase
 - No ORM — explicit SQL in `db.py`, deliberately (see docstring).
@@ -109,8 +139,9 @@ license mgmt, config backup, routing control, kiosk board.
   a new model/firmware range within an existing vendor). Register in
   `drivers/registry.py` — order matters when multiple non-default drivers
   could match the same device (first match wins; put narrower/newer
-  drivers earlier). See README.md "Adding a new driver" for the full
-  checklist.
+  drivers earlier). Set `notes` (operator-facing; exported by
+  `driver_catalog()`). Full how-to, firmware `>=` / `<=` ranges, and
+  checklists: **docs/DRIVERS.md**.
 - `DriverError` / `DriverAuthError` / `DriverUnreachableError`
   (`drivers/base.py`) are the shared exception hierarchy across all HTTP
   drivers — driver-specific code should raise/catch these, not raw

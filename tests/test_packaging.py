@@ -41,6 +41,8 @@ class TestPackaging(unittest.TestCase):
         self.assertNotIn("0.0.0.0", web)
         self.assertIn("CAP_NET_BIND_SERVICE", trapd)
         self.assertIn("--port 162", trapd)
+        self.assertIn("--log-file /var/log/nexnoc/poller.log", poller)
+        self.assertIn("--log-file /var/log/nexnoc/trapd.log", trapd)
 
     def test_apache_template_proxies_to_loopback(self):
         conf = _read("config/apache-nexnoc.conf")
@@ -48,6 +50,14 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("@@WEB_PORT@@", conf)
         self.assertIn("ProxyPass", conf)
         self.assertIn("127.0.0.1", conf)
+
+    def test_driver_howto_exists_and_covers_matching_rules(self):
+        text = _read("docs/DRIVERS.md")
+        self.assertIn("firmware_min", text)
+        self.assertIn("firmware_max", text)
+        self.assertIn("notes", text)
+        self.assertIn("DRIVER_REGISTRY", text)
+        self.assertIn("VALID_VENDORS", text)
 
     def test_env_example_matches_config_example_names(self):
         env = _read("config/nexnoc.env.example")

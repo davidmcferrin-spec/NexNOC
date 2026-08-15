@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from drivers.base import CollectResult, DiscoveryResult, Driver, InventoryItem
+from drivers.base import CollectResult, DiscoveryResult, Driver, InventoryItem, sdi_layout
 from drivers.http_util import JsonHttpClient
 from drivers.prometheus_util import (
     looks_like_prometheus,
@@ -49,6 +49,13 @@ DISCOVERY_CANDIDATES = list(PROMETHEUS_PATHS)
 class AppearXPlatformDriver(Driver):
     driver_id = "appear.x_platform.default"
     vendor = "appear"
+    notes = (
+        "Default Appear X Platform driver. Confirmed Prometheus scrapes on a "
+        "live DC X20: /prometheus/{system,product,ipgateway,alarms}/metrics. "
+        "Do not invent MMI/IpGateway JSON paths. Phase 4 must not write to a frame."
+    )
+    # Modular frame: BNCs are operator-assignable until card layout is confirmed.
+    connectors = sdi_layout(20, "assignable")
 
     def __init__(self, host: str, port: int = 443, scheme: str = "https",
                  username: Optional[str] = None, password: Optional[str] = None,

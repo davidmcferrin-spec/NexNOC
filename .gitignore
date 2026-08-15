@@ -5,6 +5,9 @@ config.json
 .env
 config/nexnoc.env
 tiles/
+uploads/
+audit.jsonl
+audit.jsonl.*.bak
 
 # Python
 __pycache__/

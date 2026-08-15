@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from drivers.base import CollectResult, DiscoveryResult, Driver, InventoryItem
+from drivers.base import CollectResult, DiscoveryResult, Driver, InventoryItem, sdi_layout
 from drivers.http_util import JsonHttpClient
 
 # Confirmed GET paths from Makito X4 Encoder 1.8.0 /apidoc.
@@ -73,6 +73,14 @@ def _item_status(row: dict) -> str:
 class HaivisionMakitoXDriver(Driver):
     driver_id = "haivision.makito_x.default"
     vendor = "haivision"
+    notes = (
+        "Default Makito X series driver. Confirmed against Makito X4 Encoder "
+        "1.8.0 /apidoc: POST /apis/authentication, GET /apis/status + "
+        "videnc/audenc/streams/vidin. No /apis/license in 1.8.0. "
+        "Poller must not start/stop/edit."
+    )
+    # Makito X4 typical SDI count; assignable because a box can encode and/or decode.
+    connectors = sdi_layout(4, "assignable")
 
     def __init__(self, host: str, port: int = 443, scheme: str = "https",
                  username: Optional[str] = None, password: Optional[str] = None,

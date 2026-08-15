@@ -171,6 +171,7 @@ class TestAppearDriver(unittest.TestCase):
         self.assertEqual(AppearXPlatformDriver.driver_id, "appear.x_platform.default")
         self.assertEqual(AppearXPlatformDriver.vendor, "appear")
         self.assertTrue(AppearXPlatformDriver.is_default_for_vendor())
+        self.assertIn("Prometheus", AppearXPlatformDriver.notes)
 
     def test_applies_to_any_model_and_firmware(self):
         # default driver: no constraints, matches anything including None
@@ -220,6 +221,7 @@ class TestHaivisionDriver(unittest.TestCase):
         self.assertEqual(HaivisionMakitoXDriver.driver_id, "haivision.makito_x.default")
         self.assertEqual(HaivisionMakitoXDriver.vendor, "haivision")
         self.assertTrue(HaivisionMakitoXDriver.is_default_for_vendor())
+        self.assertIn("/apidoc", HaivisionMakitoXDriver.notes)
 
     def test_ping(self):
         driver = HaivisionMakitoXDriver(host="127.0.0.1", port=self.port, scheme="http")

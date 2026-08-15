@@ -44,6 +44,7 @@ class TestNetInsightDriver(unittest.TestCase):
         self.assertEqual(NetInsightNimbraDriver.driver_id, "net_insight.nimbra.default")
         self.assertEqual(NetInsightNimbraDriver.vendor, "net_insight")
         self.assertTrue(NetInsightNimbraDriver.is_default_for_vendor())
+        self.assertIn("SNMP", NetInsightNimbraDriver.notes)
 
     def test_ping_direct_snmp_success(self):
         driver = NetInsightNimbraDriver(host="127.0.0.1", snmp_community="public")

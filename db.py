@@ -22,6 +22,7 @@ Design notes:
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from contextlib import contextmanager
@@ -37,6 +38,9 @@ VALID_ACCESS_MODES = {"direct_api", "direct_snmp", "via_nms"}
 VALID_DEVICE_STATUSES = {"unknown", "healthy", "degraded", "unreachable", "decommissioned"}
 VALID_SIGNAL_STATUSES = {"unknown", "up", "degraded", "down"}
 VALID_PORT_KINDS = {"sdi_in", "sdi_out", "net", "mgmt", "other"}
+VALID_PORT_CAPABILITIES = {"", "input", "output", "assignable"}
+VALID_PORT_DIRECTIONS = {"", "input", "output", "unused"}
+VALID_GEO_SOURCES = {"", "geocode", "manual"}
 VALID_FLOW_STATUSES = VALID_SIGNAL_STATUSES
 VALID_SNMP_VERSIONS = {"1", "2c", "3"}
 
@@ -63,6 +67,7 @@ class Device:
     mgmt_host: str
     access_mode: str
     driver_override: Optional[str]
+    control_driver: Optional[str]
     resolved_driver: Optional[str]
     api_port: int
     api_scheme: str
@@ -108,6 +113,7 @@ class Device:
             mgmt_host=row["mgmt_host"],
             access_mode=row["access_mode"],
             driver_override=row["driver_override"],
+            control_driver=col("control_driver"),
             resolved_driver=row["resolved_driver"],
             api_port=row["api_port"],
             api_scheme=row["api_scheme"],
@@ -161,13 +167,23 @@ class Database:
                 self._migrate_schema(conn)
             except sqlite3.Error as exc:
                 raise DatabaseError(f"Failed to apply schema from {self.schema_path}: {exc}") from exc
+        from auth import ensure_seeded
+        ensure_seeded(self)
         logger.info("Database initialized at %s", self.db_path)
 
     @staticmethod
     def _migrate_schema(conn: sqlite3.Connection) -> None:
         """ADD COLUMN for tables that already existed before cities / signal fan-out."""
         extras = {
-            "sites": [("city_id", "INTEGER REFERENCES cities(id)")],
+            "cities": [("geo_source", "TEXT NOT NULL DEFAULT ''")],
+            "sites": [
+                ("city_id", "INTEGER REFERENCES cities(id)"),
+                ("address", "TEXT"),
+                ("geo_source", "TEXT NOT NULL DEFAULT ''"),
+                ("pin_icon", "TEXT NOT NULL DEFAULT 'building'"),
+                ("pin_color", "TEXT NOT NULL DEFAULT '#6aa4ff'"),
+                ("pin_upload", "TEXT"),
+            ],
             "flows": [
                 ("signal_label", "TEXT"),
                 ("dest_city_id", "INTEGER REFERENCES cities(id)"),
@@ -184,6 +200,11 @@ class Database:
                 ("snmp_v3_auth_pass_env", "TEXT"),
                 ("snmp_v3_priv_proto", "TEXT DEFAULT 'AES'"),
                 ("snmp_v3_priv_pass_env", "TEXT"),
+                ("control_driver", "TEXT"),
+            ],
+            "ports": [
+                ("capability", "TEXT NOT NULL DEFAULT ''"),
+                ("direction", "TEXT NOT NULL DEFAULT ''"),
             ],
         }
         for table, columns in extras.items():
@@ -219,11 +240,14 @@ class Database:
     # Sites
     # ------------------------------------------------------------------
     def add_city(self, name: str, lat: Optional[float] = None,
-                 lng: Optional[float] = None, notes: str = "") -> int:
+                 lng: Optional[float] = None, notes: str = "",
+                 geo_source: str = "") -> int:
+        if geo_source not in VALID_GEO_SOURCES:
+            raise ValueError(f"invalid geo_source {geo_source!r}")
         with self.connect() as conn:
             cur = conn.execute(
-                "INSERT INTO cities (name, lat, lng, notes) VALUES (?, ?, ?, ?)",
-                (name, lat, lng, notes),
+                "INSERT INTO cities (name, lat, lng, notes, geo_source) VALUES (?, ?, ?, ?, ?)",
+                (name, lat, lng, notes, geo_source),
             )
             return cur.lastrowid
 
@@ -241,7 +265,7 @@ class Database:
 
     def update_city(self, city_id: int, name: Optional[str] = None,
                     lat: Optional[float] = None, lng: Optional[float] = None,
-                    notes: Optional[str] = None) -> None:
+                    notes: Optional[str] = None, geo_source: Optional[str] = None) -> None:
         fields: list[str] = []
         params: list = []
         if name is not None:
@@ -256,24 +280,52 @@ class Database:
         if notes is not None:
             fields.append("notes = ?")
             params.append(notes)
+        if geo_source is not None:
+            if geo_source not in VALID_GEO_SOURCES:
+                raise ValueError(f"invalid geo_source {geo_source!r}")
+            fields.append("geo_source = ?")
+            params.append(geo_source)
         if not fields:
             return
         params.append(city_id)
         with self.connect() as conn:
             conn.execute(f"UPDATE cities SET {', '.join(fields)} WHERE id = ?", params)
 
+    def count_sites_for_city(self, city_id: int) -> int:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM sites WHERE city_id = ?", (city_id,)
+            ).fetchone()
+            return int(row["n"])
+
     def delete_city(self, city_id: int) -> bool:
+        n_sites = self.count_sites_for_city(city_id)
+        if n_sites:
+            raise ValueError(
+                f"Move or delete this city's {n_sites} site"
+                f"{'' if n_sites == 1 else 's'} first."
+            )
         with self.connect() as conn:
             cur = conn.execute("DELETE FROM cities WHERE id = ?", (city_id,))
             return cur.rowcount > 0
 
     def add_site(self, name: str, city: str = "", lat: Optional[float] = None,
                  lng: Optional[float] = None, notes: str = "",
-                 city_id: Optional[int] = None) -> int:
+                 city_id: Optional[int] = None, address: str = "",
+                 geo_source: str = "", pin_icon: str = "building",
+                 pin_color: str = "#6aa4ff", pin_upload: Optional[str] = None) -> int:
+        if geo_source not in VALID_GEO_SOURCES:
+            raise ValueError(f"invalid geo_source {geo_source!r}")
         with self.connect() as conn:
             cur = conn.execute(
-                "INSERT INTO sites (name, city, city_id, lat, lng, notes) VALUES (?, ?, ?, ?, ?, ?)",
-                (name, city, city_id, lat, lng, notes),
+                """
+                INSERT INTO sites (
+                    name, city, city_id, address, lat, lng, notes,
+                    geo_source, pin_icon, pin_color, pin_upload
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (name, city, city_id, address, lat, lng, notes,
+                 geo_source, pin_icon, pin_color, pin_upload),
             )
             return cur.lastrowid
 
@@ -305,7 +357,12 @@ class Database:
             return conn.execute("SELECT * FROM sites WHERE name = ?", (name,)).fetchone()
 
     def update_site(self, site_id: int, **fields) -> None:
-        allowed = {"name", "city", "city_id", "lat", "lng", "notes"}
+        allowed = {
+            "name", "city", "city_id", "address", "lat", "lng", "notes",
+            "geo_source", "pin_icon", "pin_color", "pin_upload",
+        }
+        if "geo_source" in fields and fields["geo_source"] not in VALID_GEO_SOURCES:
+            raise ValueError(f"invalid geo_source {fields['geo_source']!r}")
         sets, params = ["updated_at = ?"], [utcnow_iso()]
         for key, value in fields.items():
             if key not in allowed:
@@ -367,6 +424,7 @@ class Database:
         firmware_version: str = "",
         access_mode: str = "direct_api",
         driver_override: Optional[str] = None,
+        control_driver: Optional[str] = None,
         api_port: int = 443,
         api_scheme: str = "https",
         api_verify_tls: bool = False,
@@ -398,7 +456,9 @@ class Database:
             raise ValueError(f"invalid snmp_version {snmp_version!r}")
         host = (mgmt_host or "").strip()
         if snmp_enabled is None:
-            snmp_enabled = access_mode == "direct_snmp" or bool(snmp_community_env or snmp_v3_user_env)
+            # All three channels (API / SNMP GET / traps) are capable by
+            # default. GET still no-ops until community or v3 creds exist.
+            snmp_enabled = True
         self._require_unique_mgmt_host(host)
         snmp = (snmp_host if snmp_host is not None else host) or ""
         if snmp.strip() and snmp.strip() != host:
@@ -409,7 +469,7 @@ class Database:
                     """
                     INSERT INTO devices (
                         site_id, name, vendor, device_role, model, firmware_version, mgmt_host,
-                        access_mode, driver_override,
+                        access_mode, driver_override, control_driver,
                         api_port, api_scheme, api_verify_tls, api_username_env, api_password_env,
                         snmp_host, snmp_port, snmp_community_env, snmp_version,
                         snmp_enabled, snmp_trap_enabled,
@@ -417,11 +477,11 @@ class Database:
                         snmp_v3_priv_proto, snmp_v3_priv_pass_env,
                         nms_host, nms_port, nms_api_key_env, nms_device_ref,
                         poll_enabled
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         site_id, name, vendor, device_role, model, firmware_version, host,
-                        access_mode, driver_override,
+                        access_mode, driver_override, control_driver,
                         api_port, api_scheme, int(api_verify_tls), api_username_env, api_password_env,
                         snmp_host if snmp_host is not None else host, snmp_port, snmp_community_env,
                         snmp_version, int(snmp_enabled), int(snmp_trap_enabled),
@@ -548,7 +608,7 @@ class Database:
     def update_device(self, device_id: int, **fields) -> None:
         allowed = {
             "site_id", "name", "vendor", "device_role", "model", "firmware_version",
-            "mgmt_host", "access_mode", "driver_override",
+            "mgmt_host", "access_mode", "driver_override", "control_driver",
             "api_port", "api_scheme", "api_verify_tls",
             "api_username_env", "api_password_env",
             "snmp_host", "snmp_port", "snmp_community_env", "snmp_version",
@@ -663,6 +723,17 @@ class Database:
                 "SELECT * FROM trap_log WHERE device_id = ? ORDER BY id DESC LIMIT ?",
                 (device_id, limit),
             ).fetchall()
+
+    def last_matched_trap(self, device_id: int) -> Optional[sqlite3.Row]:
+        with self.connect() as conn:
+            return conn.execute(
+                """
+                SELECT * FROM trap_log
+                WHERE device_id = ? AND matched = 1
+                ORDER BY id DESC LIMIT 1
+                """,
+                (device_id,),
+            ).fetchone()
 
     def set_device_status(self, device_id: int, status: str, error: Optional[str] = None) -> None:
         if status not in VALID_DEVICE_STATUSES:
@@ -875,15 +946,23 @@ class Database:
             ).fetchone()
 
     def add_port(self, device_id: int, name: str, kind: str = "other",
-                 slot: str = "", status: str = "unknown") -> int:
+                 slot: str = "", status: str = "unknown",
+                 capability: str = "", direction: str = "") -> int:
         if kind not in VALID_PORT_KINDS:
             raise ValueError(f"invalid port kind {kind!r}, must be one of {sorted(VALID_PORT_KINDS)}")
+        if capability not in VALID_PORT_CAPABILITIES:
+            raise ValueError(f"invalid port capability {capability!r}")
+        if direction not in VALID_PORT_DIRECTIONS:
+            raise ValueError(f"invalid port direction {direction!r}")
         if status not in VALID_FLOW_STATUSES:
             raise ValueError(f"invalid port status {status!r}")
         with self.connect() as conn:
             cur = conn.execute(
-                "INSERT INTO ports (device_id, name, kind, slot, status) VALUES (?, ?, ?, ?, ?)",
-                (device_id, name, kind, slot, status),
+                """
+                INSERT INTO ports (device_id, name, kind, slot, status, capability, direction)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (device_id, name, kind, slot, status, capability, direction),
             )
             return cur.lastrowid
 
@@ -914,11 +993,15 @@ class Database:
             return conn.execute("SELECT * FROM ports WHERE id = ?", (port_id,)).fetchone()
 
     def update_port(self, port_id: int, **fields) -> None:
-        allowed = {"device_id", "name", "kind", "slot", "status"}
+        allowed = {"device_id", "name", "kind", "slot", "status", "capability", "direction"}
         if "kind" in fields and fields["kind"] not in VALID_PORT_KINDS:
             raise ValueError(f"invalid port kind {fields['kind']!r}")
         if "status" in fields and fields["status"] not in VALID_FLOW_STATUSES:
             raise ValueError(f"invalid port status {fields['status']!r}")
+        if "capability" in fields and fields["capability"] not in VALID_PORT_CAPABILITIES:
+            raise ValueError(f"invalid port capability {fields['capability']!r}")
+        if "direction" in fields and fields["direction"] not in VALID_PORT_DIRECTIONS:
+            raise ValueError(f"invalid port direction {fields['direction']!r}")
         sets, params = [], []
         for key, value in fields.items():
             if key not in allowed:
@@ -1060,6 +1143,20 @@ class Database:
         with self.connect() as conn:
             return conn.execute("SELECT * FROM flows WHERE id = ?", (flow_id,)).fetchone()
 
+    def count_flows_for_port(self, port_id: int,
+                             except_flow_id: Optional[int] = None) -> int:
+        sql = """
+            SELECT COUNT(*) AS n FROM flows
+            WHERE (source_port_id = ? OR dest_port_id = ?)
+        """
+        params: list = [port_id, port_id]
+        if except_flow_id is not None:
+            sql += " AND id != ?"
+            params.append(except_flow_id)
+        with self.connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+            return int(row["n"])
+
     def update_flow(self, flow_id: int, **fields) -> None:
         allowed = {
             "label", "signal_label", "source_device_id", "source_port_id",
@@ -1115,3 +1212,162 @@ class Database:
                 """,
                 (status, now, now, signal_id),
             )
+
+    # ------------------------------------------------------------------
+    # Auth
+    # ------------------------------------------------------------------
+    def ensure_auth_settings(self) -> None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT id FROM auth_settings WHERE id = 1").fetchone()
+            if row is None:
+                conn.execute(
+                    "INSERT INTO auth_settings (id, session_idle_minutes, ldap_json) "
+                    "VALUES (1, 120, '{}')"
+                )
+
+    def get_auth_settings(self) -> dict:
+        self.ensure_auth_settings()
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM auth_settings WHERE id = 1").fetchone()
+        ldap = {}
+        try:
+            ldap = json.loads(row["ldap_json"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            ldap = {}
+        from auth import DEFAULT_LDAP
+        merged = dict(DEFAULT_LDAP)
+        if isinstance(ldap, dict):
+            merged.update(ldap)
+        return {
+            "session_idle_minutes": int(row["session_idle_minutes"] or 120),
+            "ldap": merged,
+        }
+
+    def update_auth_settings(self, session_idle_minutes: Optional[int] = None,
+                             ldap: Optional[dict] = None) -> None:
+        self.ensure_auth_settings()
+        fields, params = [], []
+        if session_idle_minutes is not None:
+            fields.append("session_idle_minutes = ?")
+            params.append(max(5, min(1440, int(session_idle_minutes))))
+        if ldap is not None:
+            fields.append("ldap_json = ?")
+            params.append(json.dumps(ldap))
+        if not fields:
+            return
+        with self.connect() as conn:
+            conn.execute(
+                f"UPDATE auth_settings SET {', '.join(fields)} WHERE id = 1",
+                params,
+            )
+
+    def list_users(self) -> list[sqlite3.Row]:
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM users ORDER BY username COLLATE NOCASE"
+            ).fetchall()
+
+    def get_user(self, user_id) -> Optional[sqlite3.Row]:
+        if user_id is None:
+            return None
+        try:
+            uid = int(user_id)
+        except (TypeError, ValueError):
+            return None
+        with self.connect() as conn:
+            return conn.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+
+    def get_user_by_username(self, username: str) -> Optional[sqlite3.Row]:
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM users WHERE username = ? COLLATE NOCASE",
+                ((username or "").strip(),),
+            ).fetchone()
+
+    def add_user(self, username: str, user_type: str = "local",
+                 password_hash: Optional[str] = None, roles: Optional[list] = None,
+                 permission_overrides: Optional[dict] = None, enabled: bool = True,
+                 must_change_password: bool = False) -> int:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO users (
+                    username, type, password_hash, roles, permission_overrides,
+                    enabled, must_change_password
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    username.strip(),
+                    user_type,
+                    password_hash,
+                    json.dumps(roles or ["viewer"]),
+                    json.dumps(permission_overrides or {}),
+                    int(enabled),
+                    int(must_change_password),
+                ),
+            )
+            return cur.lastrowid
+
+    def update_user(self, user_id: int, **fields) -> None:
+        allowed = {
+            "username", "type", "password_hash", "roles", "permission_overrides",
+            "enabled", "must_change_password",
+        }
+        sets, params = ["updated_at = ?"], [utcnow_iso()]
+        for key, value in fields.items():
+            if key not in allowed:
+                raise ValueError(f"unknown user field {key!r}")
+            if key in ("roles", "permission_overrides") and not isinstance(value, str):
+                value = json.dumps(value)
+            if key in ("enabled", "must_change_password"):
+                value = int(bool(value))
+            sets.append(f"{key} = ?")
+            params.append(value)
+        params.append(user_id)
+        with self.connect() as conn:
+            conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = ?", params)
+
+    def delete_user(self, user_id: int) -> bool:
+        with self.connect() as conn:
+            cur = conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            return cur.rowcount > 0
+
+    def count_users(self) -> int:
+        with self.connect() as conn:
+            row = conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()
+            return int(row["n"])
+
+    def add_session(self, token: str, user_id=None, username: str = "",
+                    ldap_ephemeral: bool = False, ldap_roles=None) -> None:
+        roles = ldap_roles
+        if roles is not None and not isinstance(roles, str):
+            roles = json.dumps(roles)
+        now = utcnow_iso()
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO sessions (
+                    id, user_id, username, ldap_ephemeral, ldap_roles,
+                    created_at, last_activity
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (token, user_id if isinstance(user_id, int) else None,
+                 username, int(ldap_ephemeral), roles, now, now),
+            )
+
+    def get_session(self, token: str) -> Optional[sqlite3.Row]:
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM sessions WHERE id = ?", (token,)
+            ).fetchone()
+
+    def touch_session(self, token: str) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE sessions SET last_activity = ? WHERE id = ?",
+                (utcnow_iso(), token),
+            )
+
+    def delete_session(self, token: str) -> None:
+        with self.connect() as conn:
+            conn.execute("DELETE FROM sessions WHERE id = ?", (token,))

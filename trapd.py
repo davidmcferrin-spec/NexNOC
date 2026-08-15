@@ -22,17 +22,22 @@ import sys
 from typing import Optional
 
 from db import Database
+from drivers.base import (
+    AUTH_FAIL,
+    COLD_START,
+    LINK_DOWN,
+    LINK_UP,
+    WARM_START,
+    Driver,
+    DriverResolutionError,
+    resolve_driver,
+)
+from drivers.registry import DRIVER_REGISTRY
 from envfile import default_env_path, get_value
 from poller import resolve_env, setup_logging
 
 logger = logging.getLogger("nexnoc.trapd")
 
-# SNMPv2-Trap generic OIDs (snmpTraps)
-COLD_START = "1.3.6.1.6.3.1.1.5.1"
-WARM_START = "1.3.6.1.6.3.1.1.5.2"
-LINK_DOWN = "1.3.6.1.6.3.1.1.5.3"
-LINK_UP = "1.3.6.1.6.3.1.1.5.4"
-AUTH_FAIL = "1.3.6.1.6.3.1.1.5.5"
 SYS_UPTIME = "1.3.6.1.2.1.1.3.0"
 
 GENERIC_NAMES = {
@@ -266,16 +271,26 @@ def apply_trap(db: Database, source_ip: str, decoded: dict,
         logger.info("Trap from %s oid=%s unmatched", source_ip, decoded.get("trap_oid"))
         return trap_id
     oid = decoded.get("trap_oid") or ""
-    if oid == LINK_DOWN or decoded.get("generic_trap") == 2:
-        db.set_device_status(device.id, "degraded", error=f"SNMP trap {oid or 'linkDown'}")
-        logger.warning("Trap linkDown from %s (%s)", device.name, source_ip)
-    elif oid == AUTH_FAIL or decoded.get("generic_trap") == 4:
-        db.set_device_status(device.id, "degraded", error="SNMP authenticationFailure trap")
-        logger.warning("Trap authFailure from %s (%s)", device.name, source_ip)
-    elif oid in (LINK_UP, COLD_START, WARM_START) or decoded.get("generic_trap") in (0, 1, 3):
+    try:
+        driver_cls = resolve_driver(
+            DRIVER_REGISTRY,
+            vendor=device.vendor,
+            model=device.model,
+            firmware_version=device.firmware_version,
+            driver_override=device.driver_override,
+        )
+    except DriverResolutionError:
+        driver_cls = Driver
+    result = driver_cls.interpret_trap(
+        oid, decoded.get("varbinds") or [], decoded.get("generic_trap"),
+    )
+    if result.device_status == "degraded":
+        db.set_device_status(device.id, "degraded", error=result.error or f"SNMP trap {oid}")
+        logger.warning("Trap %s from %s (%s) -> degraded", oid, device.name, source_ip)
+    elif result.device_status == "healthy":
         if device.status in ("unreachable", "degraded", "unknown"):
             db.set_device_status(device.id, "healthy")
-        logger.info("Trap %s from %s (%s)", oid, device.name, source_ip)
+        logger.info("Trap %s from %s (%s) -> healthy", oid, device.name, source_ip)
     else:
         logger.info("Trap %s from %s (%s)", oid, device.name, source_ip)
     return trap_id
@@ -344,8 +359,14 @@ def main() -> None:
     parser.add_argument("--from-snmptrapd", action="store_true",
                         help="Read one snmptrapd traphandle payload from stdin and exit")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--log-file", default="",
+                        help="Also write logs here (or set NEXNOC_LOG_FILE)")
     args = parser.parse_args()
-    setup_logging(args.verbose)
+    verbose = args.verbose or os.environ.get("NEXNOC_VERBOSE", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    log_file = args.log_file.strip() or os.environ.get("NEXNOC_TRAP_LOG_FILE", "").strip() or None
+    setup_logging(verbose, log_file)
     db = Database(args.db)
     db.initialize()
     if args.from_snmptrapd:

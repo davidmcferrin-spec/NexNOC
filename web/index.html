@@ -11,24 +11,47 @@
   <header class="top">
     <div class="brand">
       <span class="mark">NexNOC</span>
-      <span class="sub" id="clock">--:--:--</span>
+      <div class="clock-hover">
+        <span class="sub" id="clock" tabindex="0">--:--:--</span>
+        <div class="clock-popover" role="tooltip">
+          <div class="clock-popover-offset"></div>
+          <div class="clock-popover-jam"></div>
+          <button type="button" class="clock-jam-btn">Jam (Alt+J)</button>
+        </div>
+      </div>
+      <button type="button" class="btn zones-btn" id="zones-toggle" title="Four timezone clocks">Zones</button>
     </div>
     <nav class="tabs" id="tabs" aria-label="Views">
       <button type="button" data-view="map" class="active">Map</button>
       <button type="button" data-view="links">Links</button>
       <button type="button" data-view="inventory">Inventory</button>
+      <button type="button" data-view="setup">Setup</button>
+      <button type="button" data-view="admin" id="tab-admin" hidden>Admin</button>
     </nav>
     <div class="summary" id="summary" aria-live="polite"></div>
     <a class="kiosk-link" href="/kiosk" title="Open kiosk board">Kiosk</a>
+    <div class="user-box" id="user-box" hidden>
+      <span class="user-name" id="user-name"></span>
+      <button type="button" class="btn" id="admin-open" hidden>Admin</button>
+      <button type="button" class="btn" id="logout-btn">Logout</button>
+    </div>
   </header>
 
   <main>
     <section id="view-map" class="view active">
       <div class="map-wrap">
         <div id="map" role="application" aria-label="Site and flow map"></div>
-        <aside class="panel" id="map-panel">
-          <p class="muted">Click a city or hop.</p>
-        </aside>
+        <button type="button" class="map-drawer-tab" id="map-drawer-tab"
+                aria-expanded="true" aria-controls="map-panel" title="Hide details">
+          <span class="map-drawer-chevron" aria-hidden="true">‹</span>
+        </button>
+        <div class="map-drawer" id="map-drawer">
+          <div class="map-drawer-handle" id="map-drawer-handle"
+               role="separator" aria-orientation="vertical" title="Drag to resize"></div>
+          <aside class="panel" id="map-panel">
+            <p class="muted">Click a city or hop.</p>
+          </aside>
+        </div>
       </div>
     </section>
 
@@ -130,6 +153,116 @@
         </aside>
       </div>
     </section>
+
+    <section id="view-io" class="view">
+      <div class="toolbar">
+        <button type="button" class="btn" id="io-back">Back to inventory</button>
+        <h2 id="io-title" class="io-heading">Device I/O</h2>
+      </div>
+      <div id="io-body" class="io-page"></div>
+    </section>
+
+    <section id="view-setup" class="view">
+      <div class="split with-form setup-split">
+        <div class="setup-nav">
+          <div class="setup-col">
+            <div class="setup-col-head">
+              <h3>Cities</h3>
+              <button type="button" class="btn" id="setup-add-city">Add city</button>
+            </div>
+            <ul class="setup-list" id="setup-cities"></ul>
+          </div>
+          <div class="setup-col">
+            <div class="setup-col-head">
+              <h3>Sites</h3>
+              <button type="button" class="btn" id="setup-add-site" disabled>Add site</button>
+            </div>
+            <ul class="setup-list" id="setup-sites"></ul>
+          </div>
+          <div class="setup-col">
+            <div class="setup-col-head">
+              <h3>Devices</h3>
+              <button type="button" class="btn" id="setup-add-device" disabled>Add device</button>
+            </div>
+            <ul class="setup-list" id="setup-devices"></ul>
+          </div>
+        </div>
+        <aside class="panel" id="setup-panel">
+          <p class="muted">City, then building, then box. Add a city to start. The map stays for watching paths.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-admin" class="view">
+      <div class="admin-page">
+        <section class="admin-section">
+          <h2>Users</h2>
+          <p class="hint">Local users need a password. LDAP users authenticate against Active Directory.</p>
+          <div class="admin-toolbar">
+            <button type="button" class="btn" id="admin-add-user">Add user</button>
+          </div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Type</th>
+                  <th>Roles</th>
+                  <th>Enabled</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="admin-users"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="admin-section">
+          <h2>LDAP</h2>
+          <form id="admin-ldap" class="admin-form">
+            <label class="checkbox-label"><input type="checkbox" name="enabled"> Enable LDAP authentication</label>
+            <label>Host <input name="host" placeholder="ldaps://ad.example.com"></label>
+            <label>Port <input name="port" type="number" value="636"></label>
+            <label>Bind template <input name="bind_template" placeholder="{username}@nexstar.tv"></label>
+            <label>Base DN <input name="base_dn" placeholder="DC=nexstar,DC=tv"></label>
+            <label class="checkbox-label"><input type="checkbox" name="ignore_cert" checked> Ignore TLS certificate</label>
+            <button type="submit" class="btn">Save LDAP</button>
+          </form>
+          <h3>LDAP groups</h3>
+          <p class="hint">Users in these AD groups can sign in without a pre-created account. Match by group CN or full DN.</p>
+          <div class="admin-toolbar">
+            <input id="admin-group-name" placeholder="NexNOC-Operators">
+            <select id="admin-group-roles" multiple size="3"></select>
+            <button type="button" class="btn" id="admin-add-group">Add group</button>
+          </div>
+          <ul class="admin-list" id="admin-groups"></ul>
+        </section>
+        <section class="admin-section">
+          <h2>Session</h2>
+          <form id="admin-session" class="admin-form">
+            <label>Idle timeout (minutes)
+              <input name="session_idle_minutes" type="number" min="5" max="1440" value="120">
+            </label>
+            <button type="submit" class="btn">Save session</button>
+          </form>
+        </section>
+        <section class="admin-section">
+          <h2>Audit log</h2>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>User</th>
+                  <th>Action</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody id="admin-audit"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
   </main>
 
   <footer class="foot">
@@ -137,7 +270,102 @@
     <span id="poll-age"></span>
   </footer>
 
+  <div id="tz-overlay" class="tz-overlay" hidden>
+    <div class="tz-overlay-head" id="tz-overlay-head">
+      <span>Time zones</span>
+      <button type="button" class="tz-overlay-close" id="tz-overlay-close" aria-label="Close">×</button>
+    </div>
+    <div class="tz-overlay-body" id="timezone-bar">
+      <div class="clock-cell">
+        <div class="clock-label">ET</div>
+        <div class="clock-hover">
+          <div class="clock-time clock" data-tz="America/New_York" tabindex="0">--:--</div>
+          <div class="clock-popover" role="tooltip">
+            <div class="clock-popover-offset"></div>
+            <div class="clock-popover-jam"></div>
+            <button type="button" class="clock-jam-btn">Jam (Alt+J)</button>
+          </div>
+        </div>
+        <div class="clock-ampm ampm" data-tz="America/New_York"></div>
+      </div>
+      <div class="clock-cell">
+        <div class="clock-label">CT</div>
+        <div class="clock-hover">
+          <div class="clock-time clock" data-tz="America/Chicago" tabindex="0">--:--</div>
+          <div class="clock-popover" role="tooltip">
+            <div class="clock-popover-offset"></div>
+            <div class="clock-popover-jam"></div>
+            <button type="button" class="clock-jam-btn">Jam (Alt+J)</button>
+          </div>
+        </div>
+        <div class="clock-ampm ampm" data-tz="America/Chicago"></div>
+      </div>
+      <div class="clock-cell">
+        <div class="clock-label">MT</div>
+        <div class="clock-hover">
+          <div class="clock-time clock" data-tz="America/Denver" tabindex="0">--:--</div>
+          <div class="clock-popover" role="tooltip">
+            <div class="clock-popover-offset"></div>
+            <div class="clock-popover-jam"></div>
+            <button type="button" class="clock-jam-btn">Jam (Alt+J)</button>
+          </div>
+        </div>
+        <div class="clock-ampm ampm" data-tz="America/Denver"></div>
+      </div>
+      <div class="clock-cell">
+        <div class="clock-label">PT</div>
+        <div class="clock-hover">
+          <div class="clock-time clock" data-tz="America/Los_Angeles" tabindex="0">--:--</div>
+          <div class="clock-popover" role="tooltip">
+            <div class="clock-popover-offset"></div>
+            <div class="clock-popover-jam"></div>
+            <button type="button" class="clock-jam-btn">Jam (Alt+J)</button>
+          </div>
+        </div>
+        <div class="clock-ampm ampm" data-tz="America/Los_Angeles"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="pw-modal" class="pw-modal" hidden>
+    <form id="pw-form" class="auth-card">
+      <h2>Change password</h2>
+      <p class="hint">The seeded password must be changed before you can edit inventory.</p>
+      <div class="auth-error" id="pw-error" hidden></div>
+      <label>Current password <input name="current_password" type="password" required></label>
+      <label>New password <input name="new_password" type="password" required minlength="6"></label>
+      <button type="submit" class="btn auth-submit">Save password</button>
+    </form>
+  </div>
+
+  <div id="user-modal" class="pw-modal" hidden>
+    <form id="user-form" class="auth-card admin-user-card">
+      <h2 id="user-form-title">User</h2>
+      <div class="auth-error" id="user-form-error" hidden></div>
+      <input type="hidden" name="id">
+      <label>Username <input name="username" required></label>
+      <label>Type
+        <select name="type">
+          <option value="local">local</option>
+          <option value="ldap">ldap</option>
+        </select>
+      </label>
+      <label>Password <input name="password" type="password" autocomplete="new-password"></label>
+      <fieldset>
+        <legend>Roles</legend>
+        <div id="user-form-roles" class="checkbox-grid"></div>
+      </fieldset>
+      <label class="checkbox-label"><input type="checkbox" name="enabled" checked> Enabled</label>
+      <div class="admin-toolbar">
+        <button type="submit" class="btn">Save</button>
+        <button type="button" class="btn" id="user-form-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+
   <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/pins.js"></script>
+  <script src="/server-time.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

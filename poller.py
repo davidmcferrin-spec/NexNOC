@@ -15,6 +15,7 @@ Responsibilities:
 
 Run:
     python3 poller.py --config config.json --db /var/lib/nexnoc/noc.db
+    python3 poller.py --verbose --log-file poller.log
 
 Bootstrap only (no polling), e.g. after editing config.json:
     python3 poller.py --config config.json --db noc.db --bootstrap-only
@@ -33,14 +34,17 @@ import json
 import logging
 import os
 import sys
+from dataclasses import dataclass
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
 from db import Database, Device
 from drivers.base import CollectResult, Driver, DriverResolutionError, resolve_driver
 from drivers.registry import DRIVER_REGISTRY
-from drivers.snmp_util import SnmpError, SnmpTarget, snmp_ping
+from drivers.snmp_util import SnmpTarget
 from envfile import default_env_path, get_value, upsert_values
+from inventory_api import stamp_device_connectors
 
 logger = logging.getLogger("nexnoc.poller")
 
@@ -56,11 +60,30 @@ SITE_ALIASES = {
 }
 
 
-def setup_logging(verbose: bool = False) -> None:
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-    )
+def setup_logging(verbose: bool = False, log_file: Optional[str] = None) -> None:
+    """Stdout always; optional rotating file. --verbose (or NEXNOC_VERBOSE)
+    turns on per-device DEBUG lines. Cycle summaries stay at INFO."""
+    level = logging.DEBUG if verbose else logging.INFO
+    fmt = logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+    root = logging.getLogger()
+    root.setLevel(level)
+    # Replace handlers so a second --discover / test call does not duplicate.
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+    stream = logging.StreamHandler()
+    stream.setFormatter(fmt)
+    stream.setLevel(level)
+    root.addHandler(stream)
+    if log_file:
+        path = Path(log_file)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8",
+        )
+        file_handler.setFormatter(fmt)
+        file_handler.setLevel(level)
+        root.addHandler(file_handler)
+        logging.getLogger("nexnoc.poller").info("Logging to %s", path)
 
 
 def load_config(config_path: str) -> dict:
@@ -86,26 +109,40 @@ def bootstrap(db: Database, config: dict) -> None:
         city_name = site_cfg.get("city") or ""
         city_id = existing_cities.get(city_name) if city_name else None
         if site_cfg["name"] not in existing_sites:
+            lat = site_cfg.get("lat")
+            lng = site_cfg.get("lng")
+            geo_source = site_cfg.get("geo_source") or (
+                "manual" if lat is not None and lng is not None else ""
+            )
             site_id = db.add_site(
                 name=site_cfg["name"],
                 city=city_name,
                 city_id=city_id,
-                lat=site_cfg.get("lat"),
-                lng=site_cfg.get("lng"),
+                address=site_cfg.get("address") or "",
+                lat=lat,
+                lng=lng,
+                notes=site_cfg.get("notes") or "",
+                geo_source=geo_source,
+                pin_icon=site_cfg.get("pin_icon") or "building",
+                pin_color=site_cfg.get("pin_color") or "#6aa4ff",
+                pin_upload=site_cfg.get("pin_upload"),
             )
             existing_sites[site_cfg["name"]] = site_id
             logger.info("Added site %r (id=%d) in city %r", site_cfg["name"], site_id, city_name or None)
         else:
             site_id = existing_sites[site_cfg["name"]]
-            if city_id is not None:
-                row = db.get_site(site_id)
-                if row is not None and row["city_id"] is None:
-                    db.set_site_city(row["id"], city_id, city_name)
+            row = db.get_site(site_id)
+            if city_id is not None and row is not None and row["city_id"] is None:
+                db.set_site_city(row["id"], city_id, city_name)
             updates = {}
-            if site_cfg.get("lat") is not None:
-                updates["lat"] = site_cfg["lat"]
-            if site_cfg.get("lng") is not None:
-                updates["lng"] = site_cfg["lng"]
+            # Operator-adjusted pins stay put; bootstrap only fills missing coords.
+            if row is not None and (row["geo_source"] or "") != "manual":
+                if site_cfg.get("lat") is not None:
+                    updates["lat"] = site_cfg["lat"]
+                if site_cfg.get("lng") is not None:
+                    updates["lng"] = site_cfg["lng"]
+            if site_cfg.get("address") and not (row and row["address"]):
+                updates["address"] = site_cfg["address"]
             if updates:
                 db.update_site(site_id, **updates)
 
@@ -131,6 +168,7 @@ def bootstrap(db: Database, config: dict) -> None:
                 firmware_version=dev_cfg.get("firmware_version", ""),
                 access_mode=dev_cfg.get("access_mode", "direct_api"),
                 driver_override=dev_cfg.get("driver_override"),
+                control_driver=dev_cfg.get("control_driver"),
                 api_port=dev_cfg.get("api_port", 443),
                 api_scheme=dev_cfg.get("api_scheme", "https"),
                 api_verify_tls=dev_cfg.get("api_verify_tls", False),
@@ -162,6 +200,12 @@ def bootstrap(db: Database, config: dict) -> None:
             continue
         logger.info("Added device %r (id=%d, vendor=%s) at site %r",
                      dev_cfg["name"], device_id, dev_cfg["vendor"], dev_cfg["site"])
+
+    for device in db.list_devices(include_decommissioned=True):
+        added = stamp_device_connectors(db, device)
+        if added:
+            logger.info("Stamped %d connectors on %s from driver template",
+                        added, device.name)
 
     _bootstrap_trunks_and_signals(db, config, existing_sites)
     _bootstrap_ports_and_flows(db, config, existing_sites, existing_cities)
@@ -245,7 +289,8 @@ def _ensure_city(db: Database, name: str, lat=None, lng=None) -> Optional[int]:
     existing = db.get_city_by_name(name)
     if existing is not None:
         return existing["id"]
-    city_id = db.add_city(name, lat=lat, lng=lng)
+    geo_source = "manual" if lat is not None and lng is not None else ""
+    city_id = db.add_city(name, lat=lat, lng=lng, geo_source=geo_source)
     logger.info("Added city %r (id=%d)", name, city_id)
     return city_id
 
@@ -330,11 +375,15 @@ def _guess_port_kind(name: str) -> str:
     return "other"
 
 
-def _ensure_port(db: Database, device_id: int, name: str, kind: str = "", slot: str = "") -> int:
+def _ensure_port(db: Database, device_id: int, name: str, kind: str = "",
+                 slot: str = "", capability: str = "", direction: str = "") -> int:
     existing = db.find_port(device_id, name)
     if existing is not None:
         return existing["id"]
-    return db.add_port(device_id, name, kind=kind or _guess_port_kind(name), slot=slot)
+    return db.add_port(
+        device_id, name, kind=kind or _guess_port_kind(name), slot=slot,
+        capability=capability, direction=direction,
+    )
 
 
 def _bootstrap_ports_and_flows(db: Database, config: dict, existing_sites: dict,
@@ -363,6 +412,8 @@ def _bootstrap_ports_and_flows(db: Database, config: dict, existing_sites: dict,
                 name,
                 kind=port_cfg.get("kind") or _guess_port_kind(name),
                 slot=port_cfg.get("slot", ""),
+                capability=port_cfg.get("capability") or "",
+                direction=port_cfg.get("direction") or "",
             )
         except ValueError as exc:
             logger.error("Port %r on %r invalid, skipping: %s", name, device.name, exc)
@@ -379,9 +430,14 @@ def _bootstrap_ports_and_flows(db: Database, config: dict, existing_sites: dict,
                 continue
             kind = port_cfg.get("kind", "") if isinstance(port_cfg, dict) else ""
             slot = port_cfg.get("slot", "") if isinstance(port_cfg, dict) else ""
+            capability = port_cfg.get("capability", "") if isinstance(port_cfg, dict) else ""
+            direction = port_cfg.get("direction", "") if isinstance(port_cfg, dict) else ""
             if db.find_port(device.id, name) is None:
                 try:
-                    _ensure_port(db, device.id, name, kind=kind, slot=slot)
+                    _ensure_port(
+                        db, device.id, name, kind=kind, slot=slot,
+                        capability=capability, direction=direction,
+                    )
                     logger.info("Added port %r on %s", name, device.name)
                 except ValueError as exc:
                     logger.error("Port %r on %r invalid, skipping: %s", name, device.name, exc)
@@ -547,7 +603,10 @@ def resolve_env(name: Optional[str]) -> Optional[str]:
 
 
 def snmp_target_for(device: Device) -> Optional[SnmpTarget]:
-    """Build a GET target when SNMP is enabled or this box is SNMP-primary."""
+    """Build a GET target when SNMP is enabled or this box is SNMP-primary.
+
+    Operator can uncheck snmp_enabled to opt out. Missing community/v3
+    still returns None (GET is capable but not configured)."""
     use = device.snmp_enabled or device.access_mode == "direct_snmp"
     if not use:
         return None
@@ -626,30 +685,105 @@ def build_driver(db: Database, device: Device) -> Driver:
 _consecutive_failures: dict[int, int] = {}
 
 
+@dataclass
+class PollOutcome:
+    name: str
+    skipped: bool = False
+    skip_reason: str = ""
+    api: Optional[bool] = None
+    snmp: Optional[bool] = None
+    collect: str = "-"
+    status: str = ""
+    driver_id: str = "-"
+
+
 def _poll_method_for(device: Device) -> str:
     return {"direct_api": "api", "direct_snmp": "snmp", "via_nms": "nms"}[device.access_mode]
 
 
-async def poll_device(db: Database, device: Device) -> None:
+def _tri(value: Optional[bool]) -> str:
+    if value is True:
+        return "ok"
+    if value is False:
+        return "fail"
+    return "skip"
+
+
+def _driver_class_for(device: Device):
+    try:
+        return resolve_driver(
+            DRIVER_REGISTRY,
+            vendor=device.vendor,
+            model=device.model,
+            firmware_version=device.firmware_version,
+            driver_override=device.driver_override,
+        )
+    except DriverResolutionError:
+        return Driver
+
+
+def held_trap(db: Database, device: Device):
+    """Last matched trap that the driver says must not be cleared by a poll."""
+    row = db.last_matched_trap(device.id)
+    if row is None:
+        return None
+    result = _driver_class_for(device).interpret_trap(
+        row["trap_oid"] or "", generic_trap=row["generic_trap"],
+    )
+    return result if result.holds else None
+
+
+def _finish_poll(db: Database, device: Device, outcome: PollOutcome) -> PollOutcome:
+    row = db.get_device(device.id)
+    if row is not None:
+        outcome.status = row.status
+    logger.debug(
+        "%s driver=%s api=%s snmp=%s collect=%s status=%s%s",
+        outcome.name, outcome.driver_id, _tri(outcome.api), _tri(outcome.snmp),
+        outcome.collect, outcome.status or "-",
+        f" ({outcome.skip_reason})" if outcome.skip_reason else "",
+    )
+    return outcome
+
+
+async def poll_device(db: Database, device: Device) -> PollOutcome:
+    outcome = PollOutcome(name=device.name)
     if not device.poll_enabled:
-        return
+        outcome.skipped = True
+        outcome.skip_reason = "poll off"
+        logger.debug("Skipping %r — polling disabled", device.name)
+        return _finish_poll(db, device, outcome)
     if not (device.mgmt_host or "").strip() and not (device.snmp_host or "").strip():
+        outcome.skipped = True
+        outcome.skip_reason = "no management IP"
         logger.info("Skipping %r — no management IP (edit in the portal)", device.name)
-        return
+        return _finish_poll(db, device, outcome)
 
     method = _poll_method_for(device)
     loop = asyncio.get_running_loop()
     has_api = device.access_mode in ("direct_api", "via_nms")
+    snmp_wanted = device.snmp_enabled or device.access_mode == "direct_snmp"
     snmp_target = snmp_target_for(device)
+    if snmp_wanted and snmp_target is None:
+        logger.debug(
+            "%s SNMP GET skipped — %s",
+            device.name,
+            "no community or v3 credentials" if (device.mgmt_host or device.snmp_host)
+            else "no SNMP host",
+        )
+    elif not snmp_wanted:
+        logger.debug("%s SNMP GET skipped — snmp_enabled=0", device.name)
 
     api_ok: Optional[bool] = None
     snmp_ok: Optional[bool] = None
     driver = None
     snapshot = None
+    collect_flag = "-"
 
     if has_api:
         try:
             driver = build_driver(db, device)
+            outcome.driver_id = driver.driver_id
         except DriverResolutionError as exc:
             logger.error("Cannot poll device %r: %s", device.name, exc)
             db.record_poll(device.id, method=method, success=False, error_message=str(exc))
@@ -675,12 +809,15 @@ async def poll_device(db: Database, device: Device) -> None:
                 if api_ok:
                     try:
                         snapshot = await loop.run_in_executor(None, driver.collect)
+                        collect_flag = "ok" if snapshot is not None else "empty"
                     except Exception:  # noqa: BLE001
                         logger.exception("collect() failed for device %r after successful ping", device.name)
+                        collect_flag = "fail"
 
     if device.access_mode == "direct_snmp" and not has_api:
         try:
             driver = build_driver(db, device)
+            outcome.driver_id = driver.driver_id
             snmp_ok = await loop.run_in_executor(None, driver.ping)
         except DriverResolutionError as exc:
             logger.error("Cannot poll device %r: %s", device.name, exc)
@@ -696,20 +833,51 @@ async def poll_device(db: Database, device: Device) -> None:
             snmp_ok = False
         else:
             db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
-                            error_message=None if snmp_ok else "SNMP ping failed")
+                            error_message=None if snmp_ok else "SNMP GET failed")
+            if snmp_ok and snmp_target is not None:
+                try:
+                    snap = await loop.run_in_executor(None, lambda: driver.snmp_collect(snmp_target))
+                    if snapshot is None:
+                        snapshot = snap
+                    collect_flag = "ok" if snap is not None else collect_flag
+                except Exception:  # noqa: BLE001
+                    logger.exception("snmp_collect() failed for device %r", device.name)
     elif snmp_target is not None:
-        try:
-            snmp_ok = await loop.run_in_executor(None, lambda: snmp_ping(target=snmp_target, host=snmp_target.host))
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("SNMP GET failed for device %r", device.name)
-            snmp_ok = False
-            db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
-        else:
-            db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
-                            error_message=None if snmp_ok else "SNMP ping failed")
+        if driver is None:
+            try:
+                driver = build_driver(db, device)
+                outcome.driver_id = driver.driver_id
+            except (DriverResolutionError, NotImplementedError) as exc:
+                logger.error("Cannot SNMP-poll device %r: %s", device.name, exc)
+                db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+                snmp_ok = False
+        if driver is not None:
+            try:
+                snmp_ok = await loop.run_in_executor(None, lambda: driver.snmp_ping(snmp_target))
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("SNMP GET failed for device %r", device.name)
+                snmp_ok = False
+                db.record_poll(device.id, method="snmp", success=False, error_message=str(exc))
+            else:
+                db.record_poll(device.id, method="snmp", success=bool(snmp_ok),
+                                error_message=None if snmp_ok else "SNMP GET failed")
+                if snmp_ok and snapshot is None:
+                    try:
+                        snapshot = await loop.run_in_executor(
+                            None, lambda: driver.snmp_collect(snmp_target),
+                        )
+                        collect_flag = "ok" if snapshot is not None else collect_flag
+                    except Exception:  # noqa: BLE001
+                        logger.exception("snmp_collect() failed for device %r", device.name)
+
+    outcome.api = api_ok
+    outcome.snmp = snmp_ok
+    outcome.collect = collect_flag
 
     if api_ok is None and snmp_ok is None:
-        return
+        outcome.skipped = True
+        outcome.skip_reason = outcome.skip_reason or "no API or SNMP path"
+        return _finish_poll(db, device, outcome)
 
     both_fail = (api_ok is False and snmp_ok is not True) or (snmp_ok is False and api_ok is not True)
     if api_ok is True and snmp_ok is False:
@@ -717,15 +885,16 @@ async def poll_device(db: Database, device: Device) -> None:
         db.set_device_status(device.id, "degraded", error="API up, SNMP GET failed")
         if snapshot is not None:
             _apply_snapshot(db, device, snapshot)
-        return
+        return _finish_poll(db, device, outcome)
     if snmp_ok is True and api_ok is False:
         _consecutive_failures[device.id] = 0
         db.set_device_status(device.id, "degraded", error="SNMP up, API ping failed")
-        return
+        return _finish_poll(db, device, outcome)
     if both_fail and api_ok is not True and snmp_ok is not True:
         _handle_poll_result(db, device, success=False)
-        return
+        return _finish_poll(db, device, outcome)
     _handle_poll_result(db, device, success=True, snapshot=snapshot)
+    return _finish_poll(db, device, outcome)
 
 
 def _apply_snapshot(db: Database, device: Device, snapshot: CollectResult) -> None:
@@ -749,13 +918,21 @@ def _handle_poll_result(db: Database, device: Device, success: bool,
         if snapshot is not None:
             _apply_snapshot(db, device, snapshot)
             status = snapshot.device_status if snapshot.device_status in ("healthy", "degraded") else "healthy"
-            if device.status != status:
-                logger.info("Device %r -> %s", device.name, status)
-            db.set_device_status(device.id, status, error=snapshot.error)
+            error = snapshot.error
+        else:
+            status = "healthy"
+            error = None
+        hold = held_trap(db, device)
+        if hold and status == "healthy":
+            logger.info(
+                "Device %r stays degraded — last trap still holds (%s)",
+                device.name, hold.error,
+            )
+            db.set_device_status(device.id, "degraded", error=hold.error)
             return
-        if device.status != "healthy":
-            logger.info("Device %r recovered -> healthy", device.name)
-        db.set_device_status(device.id, "healthy")
+        if device.status != status:
+            logger.info("Device %r -> %s", device.name, status)
+        db.set_device_status(device.id, status, error=error)
         return
 
     _consecutive_failures[device.id] = _consecutive_failures.get(device.id, 0) + 1
@@ -769,14 +946,30 @@ def _handle_poll_result(db: Database, device: Device, success: bool,
                      device.name, misses, CONSECUTIVE_FAILURES_THRESHOLD)
 
 
+def _summarize_cycle(outcomes: list[PollOutcome]) -> None:
+    polled = [o for o in outcomes if not o.skipped]
+    skipped = [o for o in outcomes if o.skipped]
+    api_n = sum(1 for o in polled if o.api is not None)
+    api_ok = sum(1 for o in polled if o.api is True)
+    snmp_n = sum(1 for o in polled if o.snmp is not None)
+    snmp_ok = sum(1 for o in polled if o.snmp is True)
+    logger.info(
+        "Poll cycle: %d polled, %d skipped — api %d/%d ok, snmp %d/%d ok",
+        len(polled), len(skipped), api_ok, api_n, snmp_ok, snmp_n,
+    )
+
+
 async def poll_loop(db: Database, interval_seconds: int) -> None:
-    logger.info("Starting poll loop, interval=%ds", interval_seconds)
+    logger.info("Starting poll loop, interval=%ds (use --verbose for per-device lines)",
+                interval_seconds)
     while True:
         devices = db.list_devices()
         if not devices:
             logger.warning("No devices in database - nothing to poll. Run bootstrap first.")
         else:
-            await asyncio.gather(*(poll_device(db, d) for d in devices))
+            logger.info("Polling %d device(s)", len(devices))
+            outcomes = await asyncio.gather(*(poll_device(db, d) for d in devices))
+            _summarize_cycle(list(outcomes))
         await asyncio.sleep(interval_seconds)
 
 
@@ -819,10 +1012,17 @@ def main() -> None:
     parser.add_argument("--db", default="noc.db", help="Path to SQLite DB file")
     parser.add_argument("--bootstrap-only", action="store_true", help="Sync config into DB and exit")
     parser.add_argument("--discover", metavar="DEVICE_NAME", help="Probe candidate API paths against one device and exit")
-    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Per-device DEBUG lines (also NEXNOC_VERBOSE=1)")
+    parser.add_argument("--log-file", default="",
+                        help="Also write logs here (or set NEXNOC_LOG_FILE)")
     args = parser.parse_args()
 
-    setup_logging(args.verbose)
+    verbose = args.verbose or os.environ.get("NEXNOC_VERBOSE", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    log_file = args.log_file.strip() or os.environ.get("NEXNOC_LOG_FILE", "").strip() or None
+    setup_logging(verbose, log_file)
 
     db = Database(args.db)
     db.initialize()

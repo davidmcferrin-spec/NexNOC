@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS cities (
     name        TEXT NOT NULL UNIQUE,
     lat         REAL,
     lng         REAL,
+    geo_source  TEXT NOT NULL DEFAULT '',   -- 'geocode' | 'manual' | ''
     notes       TEXT,
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -34,8 +35,13 @@ CREATE TABLE IF NOT EXISTS sites (
     name        TEXT NOT NULL UNIQUE,      -- e.g. "Chicago - Wacker", "Huntsville HQ"
     city        TEXT,                      -- display / bootstrap fallback
     city_id     INTEGER REFERENCES cities(id) ON DELETE SET NULL,
+    address     TEXT,                      -- street address; geocoded to lat/lng
     lat         REAL,                      -- for the geo map view (Phase 2)
     lng         REAL,
+    geo_source  TEXT NOT NULL DEFAULT '',  -- 'geocode' | 'manual' | ''
+    pin_icon    TEXT NOT NULL DEFAULT 'building',  -- builtin id, or 'upload'
+    pin_color   TEXT NOT NULL DEFAULT '#6aa4ff',
+    pin_upload  TEXT,                      -- filename under the pin upload dir
     notes       TEXT,
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
@@ -77,6 +83,7 @@ CREATE TABLE IF NOT EXISTS devices (
     -- poller after each successful resolution, purely informational (so the
     -- interface can show "this device is using driver X" without recomputing it).
     driver_override     TEXT,
+    control_driver      TEXT,               -- Phase 4 pin; monitoring uses driver_override / resolve
     resolved_driver      TEXT,
 
     -- HTTP API fields (direct_api mode; e.g. Appear, Haivision)
@@ -179,9 +186,13 @@ CREATE INDEX IF NOT EXISTS idx_signals_device ON signals(device_id);
 CREATE TABLE IF NOT EXISTS ports (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id   INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-    name        TEXT NOT NULL,           -- "SDI-1", "Slot 5 Enc.1", "D1 10G"
+    name        TEXT NOT NULL,           -- "BNC 1", "SDI-1", "D1 10G"
     kind        TEXT NOT NULL DEFAULT 'other'
                     CHECK (kind IN ('sdi_in','sdi_out','net','mgmt','other')),
+    capability  TEXT NOT NULL DEFAULT ''
+                    CHECK (capability IN ('','input','output','assignable')),
+    direction   TEXT NOT NULL DEFAULT ''
+                    CHECK (direction IN ('','input','output','unused')),
     slot        TEXT,
     status      TEXT NOT NULL DEFAULT 'unknown'
                     CHECK (status IN ('unknown','up','degraded','down')),
@@ -302,3 +313,37 @@ CREATE TABLE IF NOT EXISTS trap_log (
 
 CREATE INDEX IF NOT EXISTS idx_trap_log_device_time ON trap_log(device_id, received_at);
 CREATE INDEX IF NOT EXISTS idx_trap_log_source ON trap_log(source_ip);
+
+-- ---------------------------------------------------------------------------
+-- Auth: local + LDAP users, server-side sessions, LDAP/session settings.
+-- Seeded on first initialize (admin/password, user/password).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    username                TEXT NOT NULL UNIQUE,
+    type                    TEXT NOT NULL DEFAULT 'local'
+                                CHECK (type IN ('local', 'ldap')),
+    password_hash           TEXT,
+    roles                   TEXT NOT NULL DEFAULT '[]',
+    permission_overrides    TEXT NOT NULL DEFAULT '{}',
+    enabled                 INTEGER NOT NULL DEFAULT 1,
+    must_change_password    INTEGER NOT NULL DEFAULT 0,
+    created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id              TEXT PRIMARY KEY,
+    user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    username        TEXT NOT NULL,
+    ldap_ephemeral  INTEGER NOT NULL DEFAULT 0,
+    ldap_roles      TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    last_activity   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS auth_settings (
+    id                      INTEGER PRIMARY KEY CHECK (id = 1),
+    session_idle_minutes    INTEGER NOT NULL DEFAULT 120,
+    ldap_json               TEXT NOT NULL DEFAULT '{}'
+);

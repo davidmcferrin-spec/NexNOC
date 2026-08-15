@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — NexNOC</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">NexNOC</div>
+    <h1>Sign in</h1>
+    <p class="auth-subtitle">NOC dashboard</p>
+    <div class="auth-error" id="auth-error" hidden></div>
+    <form id="login-form" class="auth-form">
+      <label>Username
+        <input name="username" type="text" autocomplete="username" required autofocus>
+      </label>
+      <label>Password
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="btn auth-submit">Sign in</button>
+    </form>
+    <p class="auth-kiosk"><a href="/kiosk">Open kiosk board</a></p>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const next = params.get("next") || "/";
+    const err = document.getElementById("auth-error");
+    if (params.get("reason") === "timeout") {
+      err.hidden = false;
+      err.textContent = "Session expired after inactivity.";
+    }
+    document.getElementById("login-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const data = new FormData(ev.target);
+      err.hidden = true;
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: data.get("username"),
+            password: data.get("password"),
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}`);
+        const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+        location.href = dest;
+      } catch (exc) {
+        err.hidden = false;
+        err.textContent = exc.message;
+      }
+    });
+  </script>
+</body>
+</html>
