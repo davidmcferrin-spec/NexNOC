@@ -1,0 +1,768 @@
+# HELP port_rx_rate The current RX-rate in unit bps, specified per port.
+# TYPE port_rx_rate gauge
+port_rx_rate{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",config_label="DC Breau  VLAN 10G",connector="D1",ip="set",slot="1"} 0.000000
+port_rx_rate{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",config_label="DC Breau  VLAN 1G",connector="D3",ip="set",slot="1"} 0.000000
+port_rx_rate{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",slot="1"} 0.000000
+port_rx_rate{config_id="0190e865-5b16-558d-b54c-0febb038bb57",config_label="Management 2",connector="D4",ip="set",slot="1"} 32792.000000
+# HELP port_tx_rate The current TX-rate in unit bps, specified per port.
+# TYPE port_tx_rate gauge
+port_tx_rate{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",config_label="DC Breau  VLAN 10G",connector="D1",ip="set",slot="1"} 0.000000
+port_tx_rate{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",config_label="DC Breau  VLAN 1G",connector="D3",ip="set",slot="1"} 0.000000
+port_tx_rate{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",slot="1"} 0.000000
+port_tx_rate{config_id="0190e865-5b16-558d-b54c-0febb038bb57",config_label="Management 2",connector="D4",ip="set",slot="1"} 11592.000000
+# HELP port_rx_bits The total bits received per port. Will wrap to 0 when value reaches 2^64-1.
+# TYPE port_rx_bits counter
+port_rx_bits{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",config_label="DC Breau  VLAN 10G",connector="D1",ip="set",slot="1"} 0.000000
+port_rx_bits{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",config_label="DC Breau  VLAN 1G",connector="D3",ip="set",slot="1"} 4826104.000000
+port_rx_bits{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",slot="1"} 0.000000
+port_rx_bits{config_id="0190e865-5b16-558d-b54c-0febb038bb57",config_label="Management 2",connector="D4",ip="set",slot="1"} 2002407869576.000000
+# HELP port_tx_bits The total bits sent per port. Will wrap to 0 when value reaches 2^64-1.
+# TYPE port_tx_bits counter
+port_tx_bits{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",config_label="DC Breau  VLAN 10G",connector="D1",ip="set",slot="1"} 0.000000
+port_tx_bits{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",config_label="DC Breau  VLAN 1G",connector="D3",ip="set",slot="1"} 56205920.000000
+port_tx_bits{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",slot="1"} 0.000000
+port_tx_bits{config_id="0190e865-5b16-558d-b54c-0febb038bb57",config_label="Management 2",connector="D4",ip="set",slot="1"} 481799116056.000000
+# HELP backplane_rx_rate The current bitrate in unit bps coming from the backplane into this slot.
+# TYPE backplane_rx_rate gauge
+backplane_rx_rate{slot="1"} 65280.000000
+# HELP backplane_tx_rate The current bitrate in unit bps sent into the backplane from this slot.
+# TYPE backplane_tx_rate gauge
+backplane_tx_rate{slot="1"} 0.000000
+# HELP backplane_rx_bits The total amount of bits received from the backplane into this slot. Will wrap to 0 when value reaches 2^64-1
+# TYPE backplane_rx_bits counter
+backplane_rx_bits{slot="1"} 1894932872448.000000
+# HELP backplane_tx_bits The total amount of bits sent to the backplane from this slot. Will wrap to 0 when value reaches 2^64-1
+# TYPE backplane_tx_bits counter
+backplane_tx_bits{slot="1"} 0.000000
+# HELP input_flow_rtp_err The amount of RTP errors detected post-seamless input, per flow, where applicable. The flow is identified by its config_id. For seamless inputs, additional metadata for path a is given.
+# TYPE input_flow_rtp_err counter
+# HELP input_flow_cc_err The amount of CC errors detected, per flow, where applicable.
+# TYPE input_flow_cc_err counter
+# HELP input_flow_fec_rec The amount of packets recovered by FEC.
+# TYPE input_flow_fec_rec counter
+# HELP input_flow_fec_unrec The amount of faulty packets not recovered by FEC.
+# TYPE input_flow_fec_unrec counter
+# HELP input_flow_tei_bit_err The number of times the Transport Error Indicator (TEI) bit has been seen set on the TS packet header.
+# TYPE input_flow_tei_bit_err counter
+# HELP input_flow_ts_sync_byte_err The number of times the sync byte (0x47) has been missing in the TS packet.
+# TYPE input_flow_ts_sync_byte_err counter
+# HELP input_flow_dejitter_rst_ctr Indicates the amount of times the dejitter regulator has reset for this flow.
+# TYPE input_flow_dejitter_rst_ctr counter
+# HELP input_flow_seamless_offset The reported time-offset between two 2022-2 seamless, hot-identical sources. Unit microseconds.
+# TYPE input_flow_seamless_offset gauge
+# HELP input_flow_seamless_latency_path_1 The latency of path 1 in the seamless buffer. Unit microseconds.
+# TYPE input_flow_seamless_latency_path_1 gauge
+# HELP input_flow_seamless_latency_path_2 The latency of path 2 in the seamless buffer. Unit microseconds.
+# TYPE input_flow_seamless_latency_path_2 gauge
+# HELP input_flow_bitrate The bitrate for a flow. Effective bitrate means not including the NULL PID. Total means including NULL PID. Unit bps.
+# TYPE input_flow_bitrate gauge
+# HELP input_flow_bits The amount of bits received. Effective bits received means not including the NULL PID. Total means including NULL PID. Unit bits. Will wrap to 0 when value reaches 2^64-1.
+# TYPE input_flow_bits counter
+# HELP input_flow_seamless_rtp_err The amount of RTP errors seen on the seamless input a (D1/D3) or input b (D2/D4)
+# TYPE input_flow_seamless_rtp_err counter
+# HELP output_flow_ir_hot_id_latency The measured latency in the main flow. Unit microseconds. Type Main means the main source, backup means the highest priority backup.
+# TYPE output_flow_ir_hot_id_latency gauge
+# HELP output_flow_ir_hot_id_measured_offset The measured offset between two sources in hot standby mode with identical sources. Unit microseconds. Note that the lowest possible value for this field is 819 microseconds.
+# TYPE output_flow_ir_hot_id_measured_offset gauge
+# HELP output_flow_bitrate The bitrate for an output flow. Effective bitrate means not including the NULL PID. Total means including NULL PID. Unit bps.
+# TYPE output_flow_bitrate gauge
+# HELP output_flow_bits The amount of bits sent. Effective bits received means not including the NULL PID. Total means including NULL PID. Unit bits. Will wrap to 0 when value reaches 2^64-1.
+# TYPE output_flow_bits counter
+# HELP timestamp The timestamp of when the prometheusdata at this endpoint was generated, reported in seconds since epoch.
+# TYPE timestamp gauge
+timestamp{slot="1"} 1786796294.000000
+
+# HELP port_rx_rate The current RX-rate in unit bps, specified per port.
+# TYPE port_rx_rate gauge
+port_rx_rate{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",connector="D3",ip="set",slot="2"} 0.000000
+port_rx_rate{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",connector="D1",ip="set",slot="2"} 0.000000
+port_rx_rate{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",slot="2"} 0.000000
+port_rx_rate{config_id="0190e865-5b16-558d-b54c-0febb038bb57",connector="D4",ip="set",slot="2"} 0.000000
+# HELP port_tx_rate The current TX-rate in unit bps, specified per port.
+# TYPE port_tx_rate gauge
+port_tx_rate{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",connector="D3",ip="set",slot="2"} 0.000000
+port_tx_rate{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",connector="D1",ip="set",slot="2"} 0.000000
+port_tx_rate{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",slot="2"} 0.000000
+port_tx_rate{config_id="0190e865-5b16-558d-b54c-0febb038bb57",connector="D4",ip="set",slot="2"} 0.000000
+# HELP port_rx_bits The total bits received per port. Will wrap to 0 when value reaches 2^64-1.
+# TYPE port_rx_bits counter
+port_rx_bits{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",connector="D3",ip="set",slot="2"} 0.000000
+port_rx_bits{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",connector="D1",ip="set",slot="2"} 0.000000
+port_rx_bits{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",slot="2"} 0.000000
+port_rx_bits{config_id="0190e865-5b16-558d-b54c-0febb038bb57",connector="D4",ip="set",slot="2"} 0.000000
+# HELP port_tx_bits The total bits sent per port. Will wrap to 0 when value reaches 2^64-1.
+# TYPE port_tx_bits counter
+port_tx_bits{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",connector="D3",ip="set",slot="2"} 0.000000
+port_tx_bits{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",connector="D1",ip="set",slot="2"} 0.000000
+port_tx_bits{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",slot="2"} 0.000000
+port_tx_bits{config_id="0190e865-5b16-558d-b54c-0febb038bb57",connector="D4",ip="set",slot="2"} 271265888.000000
+# HELP backplane_rx_rate The current bitrate in unit bps coming from the backplane into this slot.
+# TYPE backplane_rx_rate gauge
+backplane_rx_rate{slot="2"} 65280.000000
+# HELP backplane_tx_rate The current bitrate in unit bps sent into the backplane from this slot.
+# TYPE backplane_tx_rate gauge
+backplane_tx_rate{slot="2"} 0.000000
+# HELP backplane_rx_bits The total amount of bits received from the backplane into this slot. Will wrap to 0 when value reaches 2^64-1
+# TYPE backplane_rx_bits counter
+backplane_rx_bits{slot="2"} 1894932872448.000000
+# HELP backplane_tx_bits The total amount of bits sent to the backplane from this slot. Will wrap to 0 when value reaches 2^64-1
+# TYPE backplane_tx_bits counter
+backplane_tx_bits{slot="2"} 0.000000
+# HELP input_flow_rtp_err The amount of RTP errors detected post-seamless input, per flow, where applicable. The flow is identified by its config_id. For seamless inputs, additional metadata for path a is given.
+# TYPE input_flow_rtp_err counter
+# HELP input_flow_cc_err The amount of CC errors detected, per flow, where applicable.
+# TYPE input_flow_cc_err counter
+# HELP input_flow_fec_rec The amount of packets recovered by FEC.
+# TYPE input_flow_fec_rec counter
+# HELP input_flow_fec_unrec The amount of faulty packets not recovered by FEC.
+# TYPE input_flow_fec_unrec counter
+# HELP input_flow_tei_bit_err The number of times the Transport Error Indicator (TEI) bit has been seen set on the TS packet header.
+# TYPE input_flow_tei_bit_err counter
+# HELP input_flow_ts_sync_byte_err The number of times the sync byte (0x47) has been missing in the TS packet.
+# TYPE input_flow_ts_sync_byte_err counter
+# HELP input_flow_dejitter_rst_ctr Indicates the amount of times the dejitter regulator has reset for this flow.
+# TYPE input_flow_dejitter_rst_ctr counter
+# HELP input_flow_seamless_offset The reported time-offset between two 2022-2 seamless, hot-identical sources. Unit microseconds.
+# TYPE input_flow_seamless_offset gauge
+# HELP input_flow_seamless_latency_path_1 The latency of path 1 in the seamless buffer. Unit microseconds.
+# TYPE input_flow_seamless_latency_path_1 gauge
+# HELP input_flow_seamless_latency_path_2 The latency of path 2 in the seamless buffer. Unit microseconds.
+# TYPE input_flow_seamless_latency_path_2 gauge
+# HELP input_flow_bitrate The bitrate for a flow. Effective bitrate means not including the NULL PID. Total means including NULL PID. Unit bps.
+# TYPE input_flow_bitrate gauge
+# HELP input_flow_bits The amount of bits received. Effective bits received means not including the NULL PID. Total means including NULL PID. Unit bits. Will wrap to 0 when value reaches 2^64-1.
+# TYPE input_flow_bits counter
+# HELP input_flow_seamless_rtp_err The amount of RTP errors seen on the seamless input a (D1/D3) or input b (D2/D4)
+# TYPE input_flow_seamless_rtp_err counter
+# HELP output_flow_ir_hot_id_latency The measured latency in the main flow. Unit microseconds. Type Main means the main source, backup means the highest priority backup.
+# TYPE output_flow_ir_hot_id_latency gauge
+# HELP output_flow_ir_hot_id_measured_offset The measured offset between two sources in hot standby mode with identical sources. Unit microseconds. Note that the lowest possible value for this field is 819 microseconds.
+# TYPE output_flow_ir_hot_id_measured_offset gauge
+# HELP output_flow_bitrate The bitrate for an output flow. Effective bitrate means not including the NULL PID. Total means including NULL PID. Unit bps.
+# TYPE output_flow_bitrate gauge
+# HELP output_flow_bits The amount of bits sent. Effective bits received means not including the NULL PID. Total means including NULL PID. Unit bits. Will wrap to 0 when value reaches 2^64-1.
+# TYPE output_flow_bits counter
+# HELP timestamp The timestamp of when the prometheusdata at this endpoint was generated, reported in seconds since epoch.
+# TYPE timestamp gauge
+timestamp{slot="2"} 1786796294.000000
+
+# HELP port_rx_rate The current RX-rate in unit bps, specified per port.
+# TYPE port_rx_rate gauge
+# HELP port_tx_rate The current TX-rate in unit bps, specified per port.
+# TYPE port_tx_rate gauge
+# HELP port_rx_bits The total bits received per port. Will wrap to 0 when value reaches 2^64-1.
+# TYPE port_rx_bits counter
+# HELP port_tx_bits The total bits sent per port. Will wrap to 0 when value reaches 2^64-1.
+# TYPE port_tx_bits counter
+# HELP backplane_rx_rate The current bitrate in unit bps coming from the backplane into this slot.
+# TYPE backplane_rx_rate gauge
+backplane_rx_rate{slot="13"} 0.000000
+# HELP backplane_tx_rate The current bitrate in unit bps sent into the backplane from this slot.
+# TYPE backplane_tx_rate gauge
+backplane_tx_rate{slot="13"} 0.000000
+# HELP backplane_rx_bits The total amount of bits received from the backplane into this slot. Will wrap to 0 when value reaches 2^64-1
+# TYPE backplane_rx_bits counter
+backplane_rx_bits{slot="13"} 0.000000
+# HELP backplane_tx_bits The total amount of bits sent to the backplane from this slot. Will wrap to 0 when value reaches 2^64-1
+# TYPE backplane_tx_bits counter
+backplane_tx_bits{slot="13"} 0.000000
+# HELP input_flow_rtp_err The amount of RTP errors detected post-seamless input, per flow, where applicable. The flow is identified by its config_id. For seamless inputs, additional metadata for path a is given.
+# TYPE input_flow_rtp_err counter
+# HELP input_flow_cc_err The amount of CC errors detected, per flow, where applicable.
+# TYPE input_flow_cc_err counter
+# HELP input_flow_fec_rec The amount of packets recovered by FEC.
+# TYPE input_flow_fec_rec counter
+# HELP input_flow_fec_unrec The amount of faulty packets not recovered by FEC.
+# TYPE input_flow_fec_unrec counter
+# HELP input_flow_tei_bit_err The number of times the Transport Error Indicator (TEI) bit has been seen set on the TS packet header.
+# TYPE input_flow_tei_bit_err counter
+# HELP input_flow_ts_sync_byte_err The number of times the sync byte (0x47) has been missing in the TS packet.
+# TYPE input_flow_ts_sync_byte_err counter
+# HELP input_flow_dejitter_rst_ctr Indicates the amount of times the dejitter regulator has reset for this flow.
+# TYPE input_flow_dejitter_rst_ctr counter
+# HELP input_flow_seamless_offset The reported time-offset between two 2022-7 seamless inputs. Unit microseconds.
+# TYPE input_flow_seamless_offset gauge
+# HELP input_flow_seamless_latency_path_1 The latency of path 1 in the seamless buffer. Unit microseconds.
+# TYPE input_flow_seamless_latency_path_1 gauge
+# HELP input_flow_seamless_latency_path_2 The latency of path 2 in the seamless buffer. Unit microseconds.
+# TYPE input_flow_seamless_latency_path_2 gauge
+# HELP input_flow_bitrate The bitrate for a flow. Effective bitrate means not including the NULL PID. Total means including NULL PID. Unit bps.
+# TYPE input_flow_bitrate gauge
+# HELP input_flow_bits The amount of bits received. Effective bits received means not including the NULL PID. Total means including NULL PID. Unit bits. Will wrap to 0 when value reaches 2^64-1.
+# TYPE input_flow_bits counter
+# HELP input_flow_seamless_rtp_err The amount of RTP errors seen on the seamless input a (D1/D3) or input b (D2/D4)
+# TYPE input_flow_seamless_rtp_err counter
+# HELP output_flow_ir_hot_id_latency The measured latency in the main flow. Unit microseconds. Type Main means the main source, backup means the highest priority backup.
+# TYPE output_flow_ir_hot_id_latency gauge
+# HELP output_flow_ir_hot_id_measured_offset The measured offset between two sources in hot standby mode with identical sources. Unit microseconds. Note that the lowest possible value for this field is 819 microseconds.
+# TYPE output_flow_ir_hot_id_measured_offset gauge
+# HELP output_flow_bitrate The bitrate for an output flow. Effective bitrate means not including the NULL PID. Total means including NULL PID. Unit bps.
+# TYPE output_flow_bitrate gauge
+# HELP output_flow_bits The amount of bits sent. Effective bits received means not including the NULL PID. Total means including NULL PID. Unit bits. Will wrap to 0 when value reaches 2^64-1.
+# TYPE output_flow_bits counter
+# HELP timestamp The timestamp of when the prometheusdata at this endpoint was generated, reported in seconds since epoch.
+# TYPE timestamp gauge
+timestamp{slot="13"} 1786796291.000000
+# HELP sfp_present Whether or not an SFP module is present in the slot.
+# TYPE sfp_present gauge
+sfp_present{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",config_label="D1",connector="D1",ip="set",slot="13"} 1.000000
+sfp_present{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",config_label="D2",connector="D2",ip="set",slot="13"} 0.000000
+# HELP sfp_nominal_bitrate The nominal bitrate of the SFP module. Unit Gigabits per second.
+# TYPE sfp_nominal_bitrate gauge
+sfp_nominal_bitrate{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",config_label="D1",connector="D1",ip="set",slot="13"} 1.300000
+# HELP sfp_temperature The temperature of the SFP module. Unit degrees Celsius.
+# TYPE sfp_temperature gauge
+# HELP sfp_voltage The voltage of the SFP module. Unit volts.
+# TYPE sfp_voltage gauge
+# HELP sfp_tx_power The TX power of the SFP module. Unit milliwatts.
+# TYPE sfp_tx_power gauge
+# HELP sfp_rx_power The RX power of the SFP module. Unit milliwatts.
+# TYPE sfp_rx_power gauge
+# HELP apr_x_srt_output_data_packets_original_total Total packet count for SRT original data packets. Original data packets means packets sent for the first time, i.e. not retransmitted.
+# TYPE apr_x_srt_output_data_packets_original_total counter
+apr_x_srt_output_data_packets_original_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 478509615.000000
+apr_x_srt_output_data_packets_original_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 478914714.000000
+apr_x_srt_output_data_packets_original_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 417477766.000000
+apr_x_srt_output_data_packets_original_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 478510672.000000
+apr_x_srt_output_data_packets_original_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 478509764.000000
+apr_x_srt_output_data_packets_original_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2274839269.000000
+apr_x_srt_output_data_packets_original_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2273231767.000000
+apr_x_srt_output_data_packets_original_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2273232268.000000
+apr_x_srt_output_data_packets_original_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2273229679.000000
+apr_x_srt_output_data_packets_original_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 478513876.000000
+apr_x_srt_output_data_packets_original_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1983115168.000000
+apr_x_srt_output_data_packets_original_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2273230192.000000
+# HELP apr_x_srt_output_data_packets_retransmit_total Total packet count for SRT retransmitted data packets. Retransmitted data packets means packets sent for the second time or more.
+# TYPE apr_x_srt_output_data_packets_retransmit_total counter
+apr_x_srt_output_data_packets_retransmit_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 67.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 174.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 11.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 68.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 68.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1282.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 976.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1219.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1265.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 80.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 886.000000
+apr_x_srt_output_data_packets_retransmit_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 974.000000
+# HELP apr_x_srt_output_control_packets_incoming_total Total number of incoming control packets.
+# TYPE apr_x_srt_output_control_packets_incoming_total counter
+apr_x_srt_output_control_packets_incoming_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 3.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 102.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 3.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 10.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 442.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 374.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 425.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 365.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 1352690.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 379.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 1352690.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 1352690.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 1352690.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 1352690.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 284791.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 4.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 284791.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 1352690.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 5.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 284791.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 284791.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 284791.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="nak"} 381.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ack"} 284791.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="smallack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+apr_x_srt_output_control_packets_incoming_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="lightack"} 0.000000
+# HELP apr_x_srt_output_control_packets_outgoing_total Total number of outgoing control packets.
+# TYPE apr_x_srt_output_control_packets_outgoing_total counter
+apr_x_srt_output_control_packets_outgoing_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_output_control_packets_outgoing_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13",type="ackack"} 0.000000
+# HELP apr_x_srt_output_uptime_seconds_total Total number of seconds since the connection was established
+# TYPE apr_x_srt_output_uptime_seconds_total counter
+apr_x_srt_output_uptime_seconds_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 284790.000000
+apr_x_srt_output_uptime_seconds_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 284790.000000
+apr_x_srt_output_uptime_seconds_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 284790.000000
+apr_x_srt_output_uptime_seconds_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 284790.000000
+apr_x_srt_output_uptime_seconds_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 284790.000000
+apr_x_srt_output_uptime_seconds_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1352690.000000
+apr_x_srt_output_uptime_seconds_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1352690.000000
+apr_x_srt_output_uptime_seconds_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1352690.000000
+apr_x_srt_output_uptime_seconds_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1352690.000000
+apr_x_srt_output_uptime_seconds_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 284790.000000
+apr_x_srt_output_uptime_seconds_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1352690.000000
+apr_x_srt_output_uptime_seconds_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1352690.000000
+# HELP apr_x_srt_output_reconnections_total Total number of reconnections
+# TYPE apr_x_srt_output_reconnections_total counter
+apr_x_srt_output_reconnections_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 43.000000
+apr_x_srt_output_reconnections_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 43.000000
+apr_x_srt_output_reconnections_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 43.000000
+apr_x_srt_output_reconnections_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 42.000000
+apr_x_srt_output_reconnections_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 41.000000
+apr_x_srt_output_reconnections_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 11.000000
+apr_x_srt_output_reconnections_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 11.000000
+apr_x_srt_output_reconnections_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 11.000000
+apr_x_srt_output_reconnections_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 11.000000
+apr_x_srt_output_reconnections_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 41.000000
+apr_x_srt_output_reconnections_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 11.000000
+apr_x_srt_output_reconnections_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 11.000000
+# HELP apr_x_srt_output_debug_resend_request_sent_counter DEBUG Total number of fwcom resend requests sent
+# TYPE apr_x_srt_output_debug_resend_request_sent_counter counter
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 32.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 135.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 19.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 33.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 33.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 798.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 554.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 743.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 783.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 42.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 590.000000
+apr_x_srt_output_debug_resend_request_sent_counter{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 544.000000
+# HELP apr_x_srt_output_debug_resend_request_completed_counter DEBUG Total number of fwcom resend requests completed
+# TYPE apr_x_srt_output_debug_resend_request_completed_counter counter
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 32.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 135.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 19.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 33.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 33.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 798.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 554.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 743.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 783.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 42.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 590.000000
+apr_x_srt_output_debug_resend_request_completed_counter{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 544.000000
+# HELP apr_x_srt_output_debug_resend_request_packet_counter DEBUG Total number of packets requested to be resent
+# TYPE apr_x_srt_output_debug_resend_request_packet_counter counter
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 67.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 174.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 31.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 68.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 68.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1490.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 988.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1392.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1456.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 80.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 900.000000
+apr_x_srt_output_debug_resend_request_packet_counter{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 980.000000
+# HELP apr_x_srt_output_debug_fwcom601_discard_counter DEBUG Total number of fwcom requests discarded by FPGA.
+# TYPE apr_x_srt_output_debug_fwcom601_discard_counter counter
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_fwcom601_discard_counter{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+# HELP apr_x_srt_output_debug_late_packet_drop_fpga_total DEBUG Total number of packets dropped because they were too old
+# TYPE apr_x_srt_output_debug_late_packet_drop_fpga_total counter
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 20.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 208.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 12.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 173.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 191.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 14.000000
+apr_x_srt_output_debug_late_packet_drop_fpga_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 6.000000
+# HELP apr_x_srt_output_debug_software_retransmit_packet_drop_total DEBUG Total number of packets dropped because they were too old
+# TYPE apr_x_srt_output_debug_software_retransmit_packet_drop_total counter
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 48.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 48.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 84.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 44.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 91.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1439.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 203.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1301.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1331.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 47.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 169.000000
+apr_x_srt_output_debug_software_retransmit_packet_drop_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 158.000000
+# HELP apr_x_srt_output_retransmit_packets_dropped_total Total number of packets dropped because they were too old
+# TYPE apr_x_srt_output_retransmit_packets_dropped_total counter
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 48.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 48.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 104.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 44.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 91.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1647.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 215.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1474.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1522.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 47.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 183.000000
+apr_x_srt_output_retransmit_packets_dropped_total{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 164.000000
+# HELP apr_x_srt_output_debug_fwcom340_retransmit_queue_max DEBUG Retransmit playout buffer max filling last second
+# TYPE apr_x_srt_output_debug_fwcom340_retransmit_queue_max gauge
+apr_x_srt_output_debug_fwcom340_retransmit_queue_max{slot="13"} 0.000000
+# HELP apr_x_srt_output_debug_fwcom340_retransmit_queue_min DEBUG Retransmit playout buffer min filling last second
+# TYPE apr_x_srt_output_debug_fwcom340_retransmit_queue_min gauge
+apr_x_srt_output_debug_fwcom340_retransmit_queue_min{slot="13"} 0.000000
+# HELP apr_x_srt_output_debug_fwcom600_max_time_offset DEBUG Oldest retransmitted packet the last second
+# TYPE apr_x_srt_output_debug_fwcom600_max_time_offset gauge
+apr_x_srt_output_debug_fwcom600_max_time_offset{slot="13"} 18192.000000
+# HELP apr_x_srt_output_debug_fwcom601_max_filling DEBUG FWCOM ctrl buffer max filling last second
+# TYPE apr_x_srt_output_debug_fwcom601_max_filling gauge
+apr_x_srt_output_debug_fwcom601_max_filling{slot="13"} 0.000000
+# HELP apr_x_srt_output_debug_fwcom601_min_filling DEBUG FWCOM ctrl buffer min filling last second
+# TYPE apr_x_srt_output_debug_fwcom601_min_filling gauge
+apr_x_srt_output_debug_fwcom601_min_filling{slot="13"} 0.000000
+# HELP apr_x_srt_output_data_rate_original_bps Current bitrate for SRT original data packets, in units of bits per second. Original data packets means packets sent for the first time, i.e. not retransmitted.
+# TYPE apr_x_srt_output_data_rate_original_bps gauge
+apr_x_srt_output_data_rate_original_bps{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17923391.342163
+apr_x_srt_output_data_rate_original_bps{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_data_rate_original_bps{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 15632351.875305
+apr_x_srt_output_data_rate_original_bps{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_data_rate_original_bps{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_data_rate_original_bps{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_data_rate_original_bps{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_data_rate_original_bps{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_data_rate_original_bps{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17923391.342163
+apr_x_srt_output_data_rate_original_bps{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17923391.342163
+apr_x_srt_output_data_rate_original_bps{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 15643008.232117
+apr_x_srt_output_data_rate_original_bps{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+# HELP apr_x_srt_output_data_rate_retransmit_bps Current bitrate for SRT retransmitted data packets, in units of bits per second. Retransmitted data packets means packets sent for the second time or more.
+# TYPE apr_x_srt_output_data_rate_retransmit_bps gauge
+apr_x_srt_output_data_rate_retransmit_bps{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+apr_x_srt_output_data_rate_retransmit_bps{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.000000
+# HELP apr_x_srt_output_receiver_status_rtt_seconds Round-trip time in seconds. Measured with ACK and ACKACK ctrl packets by the receiver.
+# TYPE apr_x_srt_output_receiver_status_rtt_seconds gauge
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.005634
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.005609
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.005664
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.005647
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.005682
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.017632
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.017603
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.017635
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.017615
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.005648
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.017623
+apr_x_srt_output_receiver_status_rtt_seconds{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 0.017620
+# HELP apr_x_srt_output_receiver_status_packet_rate_pps Packet rate in packets per second, measured by the receiver. 
+# TYPE apr_x_srt_output_receiver_status_packet_rate_pps gauge
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1682.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1683.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1468.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1683.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1683.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1682.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1682.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1681.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1681.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1682.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1467.000000
+apr_x_srt_output_receiver_status_packet_rate_pps{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1682.000000
+# HELP apr_x_srt_output_receiver_status_data_rate_bps Data rate in bits per second, measured by the receiver.
+# TYPE apr_x_srt_output_receiver_status_data_rate_bps gauge
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17923391.342163
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 15643008.232117
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17934047.698975
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17923391.342163
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17923391.342163
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17912736.892700
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17912736.892700
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17923391.342163
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 15632351.875305
+apr_x_srt_output_receiver_status_data_rate_bps{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 17923391.342163
+# HELP apr_x_srt_output_debug_software_max_resend_request_time_microseconds DEBUG Maximum resend request time within last measurement interval.
+# TYPE apr_x_srt_output_debug_software_max_resend_request_time_microseconds gauge
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 875.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1042.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 827.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 898.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 871.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2474.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2351.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2210.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1877.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 842.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 1740.000000
+apr_x_srt_output_debug_software_max_resend_request_time_microseconds{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 2362.000000
+# HELP apr_x_srt_output_debug_software_max_loss_list_size DEBUG Maximum loss list size within last measurement interval.
+# TYPE apr_x_srt_output_debug_software_max_loss_list_size gauge
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 51.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 51.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 45.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 51.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 51.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 20.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 16.000000
+apr_x_srt_output_debug_software_max_loss_list_size{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 15.000000
+# HELP apr_x_srt_output_debug_software_max_loss_list_capacity DEBUG Maximum loss list capacity within last measurement interval.
+# TYPE apr_x_srt_output_debug_software_max_loss_list_capacity gauge
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="3f4e0372-76f2-41f1-ae85-20474b178801",config_label="DC to NY Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 126.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="bbc73610-4177-4d8e-9717-77870685eb64",config_label="DC to NY SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 126.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="dea81b97-6fd9-48f7-9bec-f88b3b53fab4",config_label="DC to NY SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="f1dda1cf-e816-4a67-8741-96aa5e58ecb4",config_label="DC to NY Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 126.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="53b37108-1bcb-43b7-9355-f971b5e2af3f",config_label="DC to NY Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 126.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="8ba4ca9f-8a5b-4ced-936d-d159278cdea6",config_label="DC to CHI SteadiCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="7458d167-7658-4cf2-96d7-08758595283e",config_label="DC to CHI Cam 8",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="c0a09b39-04e8-41dc-99d0-af584cfa4a90",config_label="DC to CHI Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="c564c9f6-2ecd-4fcc-b41b-8bd88cb5a60f",config_label="DC to CHI Cam 6",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="c58026db-c190-4a3d-a223-8bad235d0935",config_label="DC to NY Cam 5",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 126.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="d55925e5-2a5e-404c-9383-af4228443c85",config_label="DC to CHI SpyCam",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+apr_x_srt_output_debug_software_max_loss_list_capacity{config_id="f9eb9347-0ae6-44a0-b097-6d216a406e9c",config_label="DC to CHI Cam 7",connector="D1",ip="set",ip_interface="set",output="set",slot="13"} 50.000000
+# HELP apr_x_srt_input_data_packets_original_total Total packet count for SRT original data packets. Original data packets means packets sent for the first time, i.e. not retransmitted.
+# TYPE apr_x_srt_input_data_packets_original_total counter
+apr_x_srt_input_data_packets_original_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 2271505873.000000
+apr_x_srt_input_data_packets_original_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 448292680.000000
+apr_x_srt_input_data_packets_original_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 417919377.000000
+apr_x_srt_input_data_packets_original_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 1982385812.000000
+# HELP apr_x_srt_input_data_packets_retransmit_total Total packet count for SRT retransmitted data packets. Retransmitted data packets means packets sent for the second time or more.
+# TYPE apr_x_srt_input_data_packets_retransmit_total counter
+apr_x_srt_input_data_packets_retransmit_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 163.000000
+apr_x_srt_input_data_packets_retransmit_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 81.000000
+apr_x_srt_input_data_packets_retransmit_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 88.000000
+apr_x_srt_input_data_packets_retransmit_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 143.000000
+# HELP apr_x_srt_input_control_packets_incoming_total Total number of incoming control packets.
+# TYPE apr_x_srt_input_control_packets_incoming_total counter
+apr_x_srt_input_control_packets_incoming_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="ackack"} 133440733.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="ackack"} 133440741.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="ackack"} 28093341.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="ackack"} 28093342.000000
+apr_x_srt_input_control_packets_incoming_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="shutdown"} 0.000000
+# HELP apr_x_srt_input_control_packets_outgoing_total Total number of outgoing control packets.
+# TYPE apr_x_srt_input_control_packets_outgoing_total counter
+apr_x_srt_input_control_packets_outgoing_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="nak"} 17.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="nak"} 92.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="nak"} 9.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="shutdown"} 0.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="ack"} 133440781.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="nak"} 85.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="ack"} 28093345.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="keepalive"} 0.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="ack"} 133440781.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="handshake"} 2.000000
+apr_x_srt_input_control_packets_outgoing_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13",type="ack"} 28093345.000000
+# HELP apr_x_srt_input_uptime_seconds_total Total number of seconds since the connection was established
+# TYPE apr_x_srt_input_uptime_seconds_total counter
+apr_x_srt_input_uptime_seconds_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 1352689.000000
+apr_x_srt_input_uptime_seconds_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 284790.000000
+apr_x_srt_input_uptime_seconds_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 284790.000000
+apr_x_srt_input_uptime_seconds_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 1352689.000000
+# HELP apr_x_srt_input_reconnections_total Total number of reconnections
+# TYPE apr_x_srt_input_reconnections_total counter
+apr_x_srt_input_reconnections_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 11.000000
+apr_x_srt_input_reconnections_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 42.000000
+apr_x_srt_input_reconnections_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 41.000000
+apr_x_srt_input_reconnections_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 11.000000
+# HELP apr_x_srt_input_dropped_packets_total Total number of re-transmit requested packets dropped
+# TYPE apr_x_srt_input_dropped_packets_total counter
+apr_x_srt_input_dropped_packets_total{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+apr_x_srt_input_dropped_packets_total{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+apr_x_srt_input_dropped_packets_total{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+apr_x_srt_input_dropped_packets_total{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+# HELP apr_x_srt_input_data_rate_original_bps Current bitrate for SRT original data packets, in units of bits per second. Original data packets means packets sent for the first time, i.e. not retransmitted.
+# TYPE apr_x_srt_input_data_rate_original_bps gauge
+apr_x_srt_input_data_rate_original_bps{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 17902080.535889
+apr_x_srt_input_data_rate_original_bps{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 16751232.147217
+apr_x_srt_input_data_rate_original_bps{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 15643008.232117
+apr_x_srt_input_data_rate_original_bps{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 15621695.518494
+# HELP apr_x_srt_input_data_rate_retransmit_bps Current bitrate for SRT retransmitted data packets, in units of bits per second. Retransmitted data packets means packets sent for the second time or more.
+# TYPE apr_x_srt_input_data_rate_retransmit_bps gauge
+apr_x_srt_input_data_rate_retransmit_bps{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+apr_x_srt_input_data_rate_retransmit_bps{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+apr_x_srt_input_data_rate_retransmit_bps{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+apr_x_srt_input_data_rate_retransmit_bps{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+# HELP apr_x_srt_input_receiver_status_rtt_seconds Round-trip time in seconds. Measured with ACK and ACKACK ctrl packets by the receiver.
+# TYPE apr_x_srt_input_receiver_status_rtt_seconds gauge
+apr_x_srt_input_receiver_status_rtt_seconds{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.017608
+apr_x_srt_input_receiver_status_rtt_seconds{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.005638
+apr_x_srt_input_receiver_status_rtt_seconds{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.005622
+apr_x_srt_input_receiver_status_rtt_seconds{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.017618
+# HELP apr_x_srt_input_receiver_status_packet_rate_pps Packet rate in packets per second, measured by the receiver. 
+# TYPE apr_x_srt_input_receiver_status_packet_rate_pps gauge
+apr_x_srt_input_receiver_status_packet_rate_pps{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 1680.000000
+apr_x_srt_input_receiver_status_packet_rate_pps{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 1572.000000
+apr_x_srt_input_receiver_status_packet_rate_pps{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 1468.000000
+apr_x_srt_input_receiver_status_packet_rate_pps{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 1466.000000
+# HELP apr_x_srt_input_receiver_status_data_rate_bps Data rate in bits per second, measured by the receiver.
+# TYPE apr_x_srt_input_receiver_status_data_rate_bps gauge
+apr_x_srt_input_receiver_status_data_rate_bps{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 17902080.535889
+apr_x_srt_input_receiver_status_data_rate_bps{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 16751232.147217
+apr_x_srt_input_receiver_status_data_rate_bps{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 15643008.232117
+apr_x_srt_input_receiver_status_data_rate_bps{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 15621695.518494
+# HELP apr_x_srt_input_debug_fwcom618_min_error_seconds DEBUG FWCOM 618 minimum error in seconds.
+# TYPE apr_x_srt_input_debug_fwcom618_min_error_seconds gauge
+apr_x_srt_input_debug_fwcom618_min_error_seconds{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.000000
+apr_x_srt_input_debug_fwcom618_min_error_seconds{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.030887
+apr_x_srt_input_debug_fwcom618_min_error_seconds{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.030888
+apr_x_srt_input_debug_fwcom618_min_error_seconds{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.000000
+# HELP apr_x_srt_input_debug_fwcom618_max_error_seconds DEBUG FWCOM 618 maximum error in seconds.
+# TYPE apr_x_srt_input_debug_fwcom618_max_error_seconds gauge
+apr_x_srt_input_debug_fwcom618_max_error_seconds{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000150
+apr_x_srt_input_debug_fwcom618_max_error_seconds{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.030816
+apr_x_srt_input_debug_fwcom618_max_error_seconds{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.030821
+apr_x_srt_input_debug_fwcom618_max_error_seconds{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000198
+# HELP apr_x_srt_input_clock_frequency_offset_ppm SRT TX clock frequency offset relative to RX clock, measured in PPM.
+# TYPE apr_x_srt_input_clock_frequency_offset_ppm gauge
+apr_x_srt_input_clock_frequency_offset_ppm{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.357628
+apr_x_srt_input_clock_frequency_offset_ppm{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.476837
+apr_x_srt_input_clock_frequency_offset_ppm{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.476837
+apr_x_srt_input_clock_frequency_offset_ppm{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.417232
+# HELP apr_x_srt_input_latency_compensation_seconds Network latency compensation due to change in network latency since handshake, measured in seconds.
+# TYPE apr_x_srt_input_latency_compensation_seconds gauge
+apr_x_srt_input_latency_compensation_seconds{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+apr_x_srt_input_latency_compensation_seconds{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.030925
+apr_x_srt_input_latency_compensation_seconds{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} -0.030925
+apr_x_srt_input_latency_compensation_seconds{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000000
+# HELP apr_x_srt_input_jitter_seconds Network Time-Stamped Delay Factor (TS-DF) jitter, measured in seconds.
+# TYPE apr_x_srt_input_jitter_seconds gauge
+apr_x_srt_input_jitter_seconds{config_id="4bdaa41c-6a3d-4db0-a116-6e9e70578d4a",config_label="CHI to DC PGM",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000150
+apr_x_srt_input_jitter_seconds{config_id="fd957502-da3a-4ef2-8fc3-2b194dbe3012",config_label="NY PGM 1",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000071
+apr_x_srt_input_jitter_seconds{config_id="859bdea6-fc80-4f4c-9165-23398974dae0",config_label="NY Prompter",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000067
+apr_x_srt_input_jitter_seconds{config_id="437bd7ca-d289-47d7-a59c-0bbd0d1d5c5e",config_label="CHI to DC PMT",connector="D1",input="set",ip="set",ip_interface="set",slot="13"} 0.000198
+

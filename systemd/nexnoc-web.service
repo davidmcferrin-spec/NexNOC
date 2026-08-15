@@ -1,0 +1,22 @@
+[Unit]
+Description=NexNOC dashboard (loopback HTTP)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nexnoc
+Group=nexnoc
+WorkingDirectory=/opt/nexnoc
+EnvironmentFile=-/etc/nexnoc/nexnoc.env
+ExecStart=/usr/bin/python3 /opt/nexnoc/server.py --db /var/lib/nexnoc/noc.db --host 127.0.0.1 --port 8080 --map-config /etc/nexnoc/config.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nexnoc /var/log/nexnoc
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

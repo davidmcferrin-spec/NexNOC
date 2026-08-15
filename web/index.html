@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NexNOC</title>
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="mark">NexNOC</span>
+      <span class="sub" id="clock">--:--:--</span>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Views">
+      <button type="button" data-view="map" class="active">Map</button>
+      <button type="button" data-view="links">Links</button>
+      <button type="button" data-view="inventory">Inventory</button>
+      <button type="button" data-view="edit">Edit</button>
+    </nav>
+    <div class="summary" id="summary" aria-live="polite"></div>
+    <a class="kiosk-link" href="/kiosk" title="Open kiosk board">Kiosk</a>
+  </header>
+
+  <main>
+    <section id="view-map" class="view active">
+      <div class="map-wrap">
+        <div id="map" role="application" aria-label="Site and flow map"></div>
+        <aside class="panel" id="map-panel">
+          <p class="muted">Click a city or hop.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-links" class="view">
+      <div class="toolbar">
+        <input id="link-search" type="search" placeholder="Filter signal, city, site, device…">
+        <select id="link-status">
+          <option value="">All statuses</option>
+          <option value="up">Up</option>
+          <option value="degraded">Degraded</option>
+          <option value="down">Down</option>
+          <option value="unknown">Unknown</option>
+        </select>
+        <select id="link-src-city"></select>
+        <select id="link-dest-city"></select>
+        <select id="link-src-site"></select>
+        <select id="link-dest-site"></select>
+        <select id="link-src-port"></select>
+        <select id="link-dest-device"></select>
+        <select id="link-vendor">
+          <option value="">All vendors</option>
+          <option value="appear">Appear</option>
+          <option value="haivision">Haivision</option>
+          <option value="net_insight">Net Insight</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Signal</th>
+              <th>Source port</th>
+              <th>Source device</th>
+              <th>Source city</th>
+              <th>Source site</th>
+              <th>Dest city</th>
+              <th>Dest site</th>
+              <th>Dest device</th>
+              <th>Origin</th>
+              <th>Direction</th>
+            </tr>
+          </thead>
+          <tbody id="links-body"></tbody>
+        </table>
+        <p class="empty" id="links-empty" hidden>No flows match.</p>
+      </div>
+    </section>
+
+    <section id="view-inventory" class="view">
+      <div class="split">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Site</th>
+                <th>Vendor</th>
+                <th>Model</th>
+                <th>Role</th>
+                <th>Host</th>
+                <th>Driver</th>
+                <th>Last seen</th>
+              </tr>
+            </thead>
+            <tbody id="inv-body"></tbody>
+          </table>
+          <p class="empty" id="inv-empty" hidden>No devices. Bootstrap from config.json first.</p>
+        </div>
+        <aside class="panel" id="inv-panel">
+          <p class="muted">Click a device for configuration and paths.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-edit" class="view">
+      <div class="toolbar edit-toolbar">
+        <div class="edit-kinds" id="edit-kinds">
+          <button type="button" data-kind="devices" class="active">Devices</button>
+          <button type="button" data-kind="flows">Flows</button>
+          <button type="button" data-kind="ports">Ports</button>
+          <button type="button" data-kind="sites">Sites</button>
+          <button type="button" data-kind="cities">Cities</button>
+        </div>
+        <input id="edit-search" type="search" placeholder="Filter…">
+        <button type="button" class="btn" id="edit-new">New</button>
+      </div>
+      <div class="split edit-split">
+        <div class="table-wrap">
+          <table>
+            <thead id="edit-head"></thead>
+            <tbody id="edit-body"></tbody>
+          </table>
+          <p class="empty" id="edit-empty" hidden>Nothing here yet.</p>
+        </div>
+        <aside class="panel" id="edit-panel">
+          <p class="muted">Select a row or click New. Host and credentials can be filled in later — missing IPs still show on the map.</p>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span id="refresh-status">Connecting…</span>
+    <span id="poll-age"></span>
+  </footer>
+
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

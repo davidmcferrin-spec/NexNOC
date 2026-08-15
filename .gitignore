@@ -1,0 +1,16 @@
+# Local runtime artifacts - never commit real config or DB
+config.json
+*.db
+*.db-journal
+.env
+config/nexnoc.env
+tiles/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# OS
+.DS_Store

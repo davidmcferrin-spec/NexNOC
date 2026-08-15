@@ -1,0 +1,127 @@
+# HELP memory_usage_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with the freeram and totalram values from sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE memory_usage_ratio gauge
+memory_usage_ratio{slot="13"} 0.503852
+# HELP storage_usage_ratio Percentage of used storage, represented with a decimal fraction(Number between 0 and 1).
+# TYPE storage_usage_ratio gauge
+storage_usage_ratio{slot="13"} 0.002523
+# HELP cpu_usage_ratio Percentage of CPU being utilized the last second, represented with a decimal fraction(Number between 0 and 1).
+# TYPE cpu_usage_ratio gauge
+cpu_usage_ratio{slot="13"} 0.078880
+# HELP memory_usage_available_memory_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with MemTotal and MemAvailable from /proc/meminfo, see man page: https://man7.org/linux/man-pages/man5/proc.5.html
+# TYPE memory_usage_available_memory_ratio gauge
+memory_usage_available_memory_ratio{slot="13"} 0.337452
+# HELP system_uptime_seconds Number of seconds from last linux system boot. Value from uptime in sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE system_uptime_seconds gauge
+system_uptime_seconds{slot="13"} 55369514.000000
+# HELP application_uptime_seconds Number of seconds from last application layer boot
+# TYPE application_uptime_seconds gauge
+application_uptime_seconds{slot="13"} 55369499.000000
+
+# HELP memory_usage_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with the freeram and totalram values from sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE memory_usage_ratio gauge
+memory_usage_ratio{slot="1"} 0.746965
+# HELP storage_usage_ratio Percentage of used storage, represented with a decimal fraction(Number between 0 and 1).
+# TYPE storage_usage_ratio gauge
+storage_usage_ratio{slot="1"} 0.011783
+# HELP cpu_usage_ratio Percentage of CPU being utilized the last second, represented with a decimal fraction(Number between 0 and 1).
+# TYPE cpu_usage_ratio gauge
+cpu_usage_ratio{slot="1"} 0.065491
+# HELP memory_usage_available_memory_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with MemTotal and MemAvailable from /proc/meminfo, see man page: https://man7.org/linux/man-pages/man5/proc.5.html
+# TYPE memory_usage_available_memory_ratio gauge
+memory_usage_available_memory_ratio{slot="1"} 0.522430
+# HELP system_uptime_seconds Number of seconds from last linux system boot. Value from uptime in sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE system_uptime_seconds gauge
+system_uptime_seconds{slot="1"} 55369436.000000
+# HELP application_uptime_seconds Number of seconds from last application layer boot
+# TYPE application_uptime_seconds gauge
+application_uptime_seconds{slot="1"} 55369414.000000
+# HELP power_consumption_watts The total power consumption of the chassis.
+# TYPE power_consumption_watts gauge
+power_consumption_watts{location="chassis"} 378.000000
+# HELP ambient_temperature_celsius The ambient temperature in the chassis.
+# TYPE ambient_temperature_celsius gauge
+ambient_temperature_celsius{location="chassis"} 21.000000
+# HELP fan_speed_rpm The speed of the fans, measured in revolutions per minute.
+# TYPE fan_speed_rpm gauge
+fan_speed_rpm{fanNumber="4",location="chassis"} 4963.000000
+fan_speed_rpm{fanNumber="3",location="chassis"} 4976.000000
+fan_speed_rpm{fanNumber="2",location="chassis"} 5013.000000
+fan_speed_rpm{fanNumber="1",location="chassis"} 4963.000000
+fan_speed_rpm{fanNumber="0",location="chassis"} 5023.000000
+
+# HELP memory_usage_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with the freeram and totalram values from sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE memory_usage_ratio gauge
+memory_usage_ratio{slot="2"} 0.672582
+# HELP storage_usage_ratio Percentage of used storage, represented with a decimal fraction(Number between 0 and 1).
+# TYPE storage_usage_ratio gauge
+storage_usage_ratio{slot="2"} 0.011762
+# HELP cpu_usage_ratio Percentage of CPU being utilized the last second, represented with a decimal fraction(Number between 0 and 1).
+# TYPE cpu_usage_ratio gauge
+cpu_usage_ratio{slot="2"} 0.075188
+# HELP memory_usage_available_memory_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with MemTotal and MemAvailable from /proc/meminfo, see man page: https://man7.org/linux/man-pages/man5/proc.5.html
+# TYPE memory_usage_available_memory_ratio gauge
+memory_usage_available_memory_ratio{slot="2"} 0.426200
+# HELP system_uptime_seconds Number of seconds from last linux system boot. Value from uptime in sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE system_uptime_seconds gauge
+system_uptime_seconds{slot="2"} 55369434.000000
+# HELP application_uptime_seconds Number of seconds from last application layer boot
+# TYPE application_uptime_seconds gauge
+application_uptime_seconds{slot="2"} 55369412.000000
+
+# HELP memory_usage_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with the freeram and totalram values from sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE memory_usage_ratio gauge
+memory_usage_ratio{slot="3"} 0.7646062834892002
+# HELP storage_usage_ratio Percentage of used storage, represented with a decimal fraction(Number between 0 and 1).
+# TYPE storage_usage_ratio gauge
+storage_usage_ratio{slot="3"} 0.003989346026443852
+# HELP cpu_usage_ratio Percentage of CPU being utilized the last second, represented with a decimal fraction(Number between 0 and 1).
+# TYPE cpu_usage_ratio gauge
+cpu_usage_ratio{slot="3"} 0.455
+# HELP memory_usage_available_memory_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with MemTotal and MemAvailable from /proc/meminfo, see man page: https://man7.org/linux/man-pages/man5/proc.5.html
+# TYPE memory_usage_available_memory_ratio gauge
+memory_usage_available_memory_ratio{slot="3"} 0.4566678869770693
+# HELP system_uptime_seconds Number of seconds from last linux system boot. Value from uptime in sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE system_uptime_seconds gauge
+system_uptime_seconds{slot="3"} 55369280
+# HELP application_uptime_seconds Number of seconds from last application layer boot
+# TYPE application_uptime_seconds gauge
+application_uptime_seconds{slot="3"} 55369256
+
+# HELP memory_usage_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with the freeram and totalram values from sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE memory_usage_ratio gauge
+memory_usage_ratio{slot="5"} 0.7421456384996838
+# HELP storage_usage_ratio Percentage of used storage, represented with a decimal fraction(Number between 0 and 1).
+# TYPE storage_usage_ratio gauge
+storage_usage_ratio{slot="5"} 0.002935860870471596
+# HELP cpu_usage_ratio Percentage of CPU being utilized the last second, represented with a decimal fraction(Number between 0 and 1).
+# TYPE cpu_usage_ratio gauge
+cpu_usage_ratio{slot="5"} 0.1775
+# HELP memory_usage_available_memory_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with MemTotal and MemAvailable from /proc/meminfo, see man page: https://man7.org/linux/man-pages/man5/proc.5.html
+# TYPE memory_usage_available_memory_ratio gauge
+memory_usage_available_memory_ratio{slot="5"} 0.4509227210703232
+# HELP system_uptime_seconds Number of seconds from last linux system boot. Value from uptime in sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE system_uptime_seconds gauge
+system_uptime_seconds{slot="5"} 55369407
+# HELP application_uptime_seconds Number of seconds from last application layer boot
+# TYPE application_uptime_seconds gauge
+application_uptime_seconds{slot="5"} 55369383
+
+# HELP memory_usage_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with the freeram and totalram values from sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE memory_usage_ratio gauge
+memory_usage_ratio{slot="4"} 0.7585283056544747
+# HELP storage_usage_ratio Percentage of used storage, represented with a decimal fraction(Number between 0 and 1).
+# TYPE storage_usage_ratio gauge
+storage_usage_ratio{slot="4"} 0.003831137124928552
+# HELP cpu_usage_ratio Percentage of CPU being utilized the last second, represented with a decimal fraction(Number between 0 and 1).
+# TYPE cpu_usage_ratio gauge
+cpu_usage_ratio{slot="4"} 0.1764705882352941
+# HELP memory_usage_available_memory_ratio Percentage of used memory, represented with a decimal fraction(Number between 0 and 1). Calculated with MemTotal and MemAvailable from /proc/meminfo, see man page: https://man7.org/linux/man-pages/man5/proc.5.html
+# TYPE memory_usage_available_memory_ratio gauge
+memory_usage_available_memory_ratio{slot="4"} 0.4566699670516191
+# HELP system_uptime_seconds Number of seconds from last linux system boot. Value from uptime in sysinfo, see man page https://man7.org/linux/man-pages/man2/sysinfo.2.html
+# TYPE system_uptime_seconds gauge
+system_uptime_seconds{slot="4"} 55369503
+# HELP application_uptime_seconds Number of seconds from last application layer boot
+# TYPE application_uptime_seconds gauge
+application_uptime_seconds{slot="4"} 55369479
+

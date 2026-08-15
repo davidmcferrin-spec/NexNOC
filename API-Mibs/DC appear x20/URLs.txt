@@ -1,0 +1,4 @@
+/prometheus/system/metrics
+/prometheus/product/metrics
+/prometheus/ipgateway/metrics
+/prometheus/alarms/metrics

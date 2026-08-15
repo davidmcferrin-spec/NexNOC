@@ -1,0 +1,14 @@
+# HELP total_alarms Number of active alarms in the system.
+# TYPE total_alarms gauge
+total_alarms{config_id="f3859432-6419-42ed-9384-72f054429216",severity="critical",slot="5"} 2.000000
+total_alarms{config_id="f018df51-462a-44ff-ac71-686f498c86d8",severity="critical",slot="5"} 2.000000
+total_alarms{config_id="d32ef040-b570-4084-9566-99cd53e38be9",severity="critical",slot="5"} 2.000000
+total_alarms{config_id="3b1d7991-8848-4898-86d1-c0fbbc8983f0",severity="critical",slot="5"} 2.000000
+total_alarms{config_id="83edab0a-dbfd-4842-bc22-40365cad7fbc",severity="critical",slot="5"} 2.000000
+total_alarms{config_id="d95cbfa6-1568-445b-9841-bb8177bc5da8",severity="warning",slot="4"} 1.000000
+total_alarms{config_id="0190e865-5b16-558d-b54c-0febb038bb57",connector="D4",ip="set",severity="major",slot="2"} 1.000000
+total_alarms{config_id="f6df2e9c-c41d-46fe-a800-f77e991de0f1",severity="critical",slot="5"} 2.000000
+total_alarms{config_id="212c0d7e-9128-54e2-aab5-40ac002052ac",config_label="DC Breau  VLAN 10G",connector="D1",ip="set",severity="major",slot="1"} 1.000000
+total_alarms{config_id="80bd7a4d-3f5c-54bf-a27f-cacde66a8f4b",config_label="DC Breau  VLAN 1G",connector="D3",ip="set",severity="major",slot="1"} 1.000000
+total_alarms{config_id="20a021e7-0e36-580f-952f-b0656d2702e6",connector="D2",ip="set",severity="major",slot="1"} 1.000000
+

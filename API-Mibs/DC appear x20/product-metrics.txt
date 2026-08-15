@@ -1,0 +1,130 @@
+# HELP apr_x_sdi_lock_loss_count Number of times SDI lock has been lost
+# TYPE apr_x_sdi_lock_loss_count counter
+apr_x_sdi_lock_loss_count{slot="5",config_id="f3859432-6419-42ed-9384-72f054429216",config_label="Service: Slot 5-Enc.6 (DC to CHI SpyCam)",direction="input"} 2
+apr_x_sdi_lock_loss_count{slot="5",config_id="f018df51-462a-44ff-ac71-686f498c86d8",config_label="Service: Slot 5-Enc.1 (DC to CHI Cam 5)",direction="input"} 2
+apr_x_sdi_lock_loss_count{slot="5",config_id="d32ef040-b570-4084-9566-99cd53e38be9",config_label="Service: Slot 5-Enc.3 (DC to CHI Cam 7)",direction="input"} 4
+apr_x_sdi_lock_loss_count{slot="5",config_id="f6df2e9c-c41d-46fe-a800-f77e991de0f1",config_label="Service: Slot 5-Enc.5 (DC to CHI SteadiCam)",direction="input"} 14
+apr_x_sdi_lock_loss_count{slot="5",config_id="83edab0a-dbfd-4842-bc22-40365cad7fbc",config_label="Service: Slot 5-Enc.2 (DC to CHI Cam 6)",direction="input"} 4
+apr_x_sdi_lock_loss_count{slot="5",config_id="3b1d7991-8848-4898-86d1-c0fbbc8983f0",config_label="Service: Slot 5-Enc.4 (DC to CHI Cam 8)",direction="input"} 2
+# HELP apr_x_sdi_edh_error_count Number of EDH errors
+# TYPE apr_x_sdi_edh_error_count counter
+apr_x_sdi_edh_error_count{slot="5",config_id="f3859432-6419-42ed-9384-72f054429216",config_label="Service: Slot 5-Enc.6 (DC to CHI SpyCam)",direction="input"} 17
+apr_x_sdi_edh_error_count{slot="5",config_id="f018df51-462a-44ff-ac71-686f498c86d8",config_label="Service: Slot 5-Enc.1 (DC to CHI Cam 5)",direction="input"} 9
+apr_x_sdi_edh_error_count{slot="5",config_id="d32ef040-b570-4084-9566-99cd53e38be9",config_label="Service: Slot 5-Enc.3 (DC to CHI Cam 7)",direction="input"} 31
+apr_x_sdi_edh_error_count{slot="5",config_id="f6df2e9c-c41d-46fe-a800-f77e991de0f1",config_label="Service: Slot 5-Enc.5 (DC to CHI SteadiCam)",direction="input"} 1725
+apr_x_sdi_edh_error_count{slot="5",config_id="83edab0a-dbfd-4842-bc22-40365cad7fbc",config_label="Service: Slot 5-Enc.2 (DC to CHI Cam 6)",direction="input"} 29
+apr_x_sdi_edh_error_count{slot="5",config_id="3b1d7991-8848-4898-86d1-c0fbbc8983f0",config_label="Service: Slot 5-Enc.4 (DC to CHI Cam 8)",direction="input"} 10
+# HELP apr_x_sdi_lock_status Whether or not lock is acquired
+# TYPE apr_x_sdi_lock_status gauge
+apr_x_sdi_lock_status{slot="5",config_id="f3859432-6419-42ed-9384-72f054429216",config_label="Service: Slot 5-Enc.6 (DC to CHI SpyCam)",direction="input"} 0
+apr_x_sdi_lock_status{slot="5",config_id="f018df51-462a-44ff-ac71-686f498c86d8",config_label="Service: Slot 5-Enc.1 (DC to CHI Cam 5)",direction="input"} 0
+apr_x_sdi_lock_status{slot="5",config_id="d32ef040-b570-4084-9566-99cd53e38be9",config_label="Service: Slot 5-Enc.3 (DC to CHI Cam 7)",direction="input"} 0
+apr_x_sdi_lock_status{slot="5",config_id="f6df2e9c-c41d-46fe-a800-f77e991de0f1",config_label="Service: Slot 5-Enc.5 (DC to CHI SteadiCam)",direction="input"} 0
+apr_x_sdi_lock_status{slot="5",config_id="83edab0a-dbfd-4842-bc22-40365cad7fbc",config_label="Service: Slot 5-Enc.2 (DC to CHI Cam 6)",direction="input"} 0
+apr_x_sdi_lock_status{slot="5",config_id="3b1d7991-8848-4898-86d1-c0fbbc8983f0",config_label="Service: Slot 5-Enc.4 (DC to CHI Cam 8)",direction="input"} 0
+# HELP apr_x_sdi_bitrate SDI bitrate in Mbit
+# TYPE apr_x_sdi_bitrate gauge
+apr_x_sdi_bitrate{slot="5",config_id="f3859432-6419-42ed-9384-72f054429216",config_label="Service: Slot 5-Enc.6 (DC to CHI SpyCam)",direction="input"} 0
+apr_x_sdi_bitrate{slot="5",config_id="f018df51-462a-44ff-ac71-686f498c86d8",config_label="Service: Slot 5-Enc.1 (DC to CHI Cam 5)",direction="input"} 0
+apr_x_sdi_bitrate{slot="5",config_id="d32ef040-b570-4084-9566-99cd53e38be9",config_label="Service: Slot 5-Enc.3 (DC to CHI Cam 7)",direction="input"} 0
+apr_x_sdi_bitrate{slot="5",config_id="f6df2e9c-c41d-46fe-a800-f77e991de0f1",config_label="Service: Slot 5-Enc.5 (DC to CHI SteadiCam)",direction="input"} 0
+apr_x_sdi_bitrate{slot="5",config_id="83edab0a-dbfd-4842-bc22-40365cad7fbc",config_label="Service: Slot 5-Enc.2 (DC to CHI Cam 6)",direction="input"} 0
+apr_x_sdi_bitrate{slot="5",config_id="3b1d7991-8848-4898-86d1-c0fbbc8983f0",config_label="Service: Slot 5-Enc.4 (DC to CHI Cam 8)",direction="input"} 0
+# HELP apr_x_sdi_video_mode 0: (off_or_invalid)0, 1: 480i30, 2: 480i29.97, 3: 480p60, 4: 480p59.94, 5: 576i25, 6: 576p50, 7: 720p24, 8: 720p23.98, 9: 720p25, 10: 720p30, 11: 720p29.97, 12: 720p50, 13: 720p60, 14: 720p59.94, 15: 1080p24, 16: 1080p23.98, 17: 1080p25, 18: 1080p30, 19: 1080p29.97, 20: 1080i25, 21: 1080i30, 22: 1080i29.97, 23: 1080p60, 24: 1080p59.94, 25: 2160p24, 26: 2160p23.98, 27: 2160p25, 28: 2160p30, 29: 2160p29.97, 30: 2160p50, 31: 2160p60, 32: 2160p59.94
+# TYPE apr_x_sdi_video_mode gauge
+apr_x_sdi_video_mode{slot="5",config_id="f3859432-6419-42ed-9384-72f054429216",config_label="Service: Slot 5-Enc.6 (DC to CHI SpyCam)",direction="input"} 0
+apr_x_sdi_video_mode{slot="5",config_id="f018df51-462a-44ff-ac71-686f498c86d8",config_label="Service: Slot 5-Enc.1 (DC to CHI Cam 5)",direction="input"} 0
+apr_x_sdi_video_mode{slot="5",config_id="d32ef040-b570-4084-9566-99cd53e38be9",config_label="Service: Slot 5-Enc.3 (DC to CHI Cam 7)",direction="input"} 0
+apr_x_sdi_video_mode{slot="5",config_id="f6df2e9c-c41d-46fe-a800-f77e991de0f1",config_label="Service: Slot 5-Enc.5 (DC to CHI SteadiCam)",direction="input"} 0
+apr_x_sdi_video_mode{slot="5",config_id="83edab0a-dbfd-4842-bc22-40365cad7fbc",config_label="Service: Slot 5-Enc.2 (DC to CHI Cam 6)",direction="input"} 0
+apr_x_sdi_video_mode{slot="5",config_id="3b1d7991-8848-4898-86d1-c0fbbc8983f0",config_label="Service: Slot 5-Enc.4 (DC to CHI Cam 8)",direction="input"} 0
+
+# HELP apr_x_sdi_lock_loss_count Number of times SDI lock has been lost
+# TYPE apr_x_sdi_lock_loss_count counter
+apr_x_sdi_lock_loss_count{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="input"} 2171
+apr_x_sdi_lock_loss_count{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="input"} 1924
+apr_x_sdi_lock_loss_count{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="input"} 1879
+apr_x_sdi_lock_loss_count{slot="3",config_id="ee6b7d30-f0c9-4f6a-bce4-73ce01ab3887",config_label="Service: DC ENC 6 (DC ENC 6)",direction="input"} 16663
+apr_x_sdi_lock_loss_count{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="input"} 1887
+apr_x_sdi_lock_loss_count{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="input"} 1911
+# HELP apr_x_sdi_edh_error_count Number of EDH errors
+# TYPE apr_x_sdi_edh_error_count counter
+apr_x_sdi_edh_error_count{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="input"} 2089
+apr_x_sdi_edh_error_count{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="input"} 27996
+apr_x_sdi_edh_error_count{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="input"} 32958
+apr_x_sdi_edh_error_count{slot="3",config_id="ee6b7d30-f0c9-4f6a-bce4-73ce01ab3887",config_label="Service: DC ENC 6 (DC ENC 6)",direction="input"} 39957
+apr_x_sdi_edh_error_count{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="input"} 27760
+apr_x_sdi_edh_error_count{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="input"} 29105
+# HELP apr_x_pid_ts_bytes Total TS packets in bytes received/processed/produced
+# TYPE apr_x_pid_ts_bytes counter
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="208"} 1779393305316
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="206"} 1779523809652
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="201"} 1957327699024
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="208"} 1779393315656
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="101"} 106608139494828
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="207"} 1780024112808
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="203"} 1957247648436
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="204"} 1957156071756
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="202"} 1957464292116
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="201"} 1957327019780
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="201"} 1957327576636
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="206"} 1779524492092
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="203"} 1957246450124
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="205"} 1779447579600
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="203"} 1957247690548
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="207"} 1779392947552
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="203"} 1957247542780
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="206"} 1779480025392
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="208"} 1779392525304
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="207"} 1780023943984
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="207"} 1780022735520
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="206"} 1779526253652
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="203"} 1956962535156
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="207"} 1780024066936
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="202"} 1957464700452
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="204"} 1957157203704
+apr_x_pid_ts_bytes{slot="3",config_id="ee6b7d30-f0c9-4f6a-bce4-73ce01ab3887",config_label="Service: DC ENC 6 (DC ENC 6)",direction="output",pid="101"} 55724462578484
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="202"} 1956962504700
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="202"} 1957462872152
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="101"} 106655391614484
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="201"} 1957060170136
+apr_x_pid_ts_bytes{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="output",pid="205"} 1779447345540
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="205"} 1779447595016
+apr_x_pid_ts_bytes{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="output",pid="101"} 106606962770116
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="208"} 1779393259444
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="204"} 1957156652676
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="201"} 1957328669104
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="101"} 106606389537436
+apr_x_pid_ts_bytes{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="output",pid="101"} 106606723742968
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="202"} 1957464749896
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="204"} 1957157617680
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="205"} 1779392542036
+apr_x_pid_ts_bytes{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="output",pid="204"} 1957060199088
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="205"} 1779447646152
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="206"} 1779525264020
+apr_x_pid_ts_bytes{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="output",pid="208"} 1779393297044
+# HELP apr_x_sdi_lock_status Whether or not lock is acquired
+# TYPE apr_x_sdi_lock_status gauge
+apr_x_sdi_lock_status{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="input"} 1
+apr_x_sdi_lock_status{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="input"} 1
+apr_x_sdi_lock_status{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="input"} 1
+apr_x_sdi_lock_status{slot="3",config_id="ee6b7d30-f0c9-4f6a-bce4-73ce01ab3887",config_label="Service: DC ENC 6 (DC ENC 6)",direction="input"} 1
+apr_x_sdi_lock_status{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="input"} 1
+apr_x_sdi_lock_status{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="input"} 1
+# HELP apr_x_sdi_bitrate SDI bitrate in Mbit
+# TYPE apr_x_sdi_bitrate gauge
+apr_x_sdi_bitrate{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="input"} 2967
+apr_x_sdi_bitrate{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="input"} 2967
+apr_x_sdi_bitrate{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="input"} 2967
+apr_x_sdi_bitrate{slot="3",config_id="ee6b7d30-f0c9-4f6a-bce4-73ce01ab3887",config_label="Service: DC ENC 6 (DC ENC 6)",direction="input"} 2967
+apr_x_sdi_bitrate{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="input"} 2967
+apr_x_sdi_bitrate{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="input"} 2967
+# HELP apr_x_sdi_video_mode 0: (off_or_invalid)0, 1: 480i30, 2: 480i29.97, 3: 480p60, 4: 480p59.94, 5: 576i25, 6: 576p50, 7: 720p24, 8: 720p23.98, 9: 720p25, 10: 720p30, 11: 720p29.97, 12: 720p50, 13: 720p60, 14: 720p59.94, 15: 1080p24, 16: 1080p23.98, 17: 1080p25, 18: 1080p30, 19: 1080p29.97, 20: 1080i25, 21: 1080i30, 22: 1080i29.97, 23: 1080p60, 24: 1080p59.94, 25: 2160p24, 26: 2160p23.98, 27: 2160p25, 28: 2160p30, 29: 2160p29.97, 30: 2160p50, 31: 2160p60, 32: 2160p59.94
+# TYPE apr_x_sdi_video_mode gauge
+apr_x_sdi_video_mode{slot="3",config_id="c8e47521-8366-4920-b127-2a3625c97f17",config_label="Service: DC ENC 5 (DC ENC 5)",direction="input"} 22
+apr_x_sdi_video_mode{slot="3",config_id="8ce722ba-5d8b-4719-b8d7-ab36f5f70fb0",config_label="Service: DC ENC 2 (DC ENC 2)",direction="input"} 22
+apr_x_sdi_video_mode{slot="3",config_id="854e3356-d84d-4987-8ab6-ee80394a3045",config_label="Service: DC ENC 3 (DC ENC 3)",direction="input"} 22
+apr_x_sdi_video_mode{slot="3",config_id="ee6b7d30-f0c9-4f6a-bce4-73ce01ab3887",config_label="Service: DC ENC 6 (DC ENC 6)",direction="input"} 22
+apr_x_sdi_video_mode{slot="3",config_id="83b86ecd-574c-439f-84aa-b82b880c496b",config_label="Service: DC ENC 1 (DC ENC 1)",direction="input"} 22
+apr_x_sdi_video_mode{slot="3",config_id="110cf11a-4e70-4da6-a30d-1264a7297d2f",config_label="Service: DC ENC 4 (DC ENC 4)",direction="input"} 22
+

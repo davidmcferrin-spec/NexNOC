@@ -1,0 +1,163 @@
+{
+  "poll_interval_seconds": 30,
+  "map": {
+    "tile_url": "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    "tile_subdomains": "abcd",
+    "min_zoom": 3,
+    "max_zoom": 18,
+    "local_tile_dir": "",
+    "_comment": "Leave local_tile_dir empty for CDN tiles (dev). For production: python3 scripts/fetch_tiles.py --out /var/lib/nexnoc/tiles then set local_tile_dir to that path. The dashboard then serves /tiles/{z}/{x}/{y}.png and does not call the CDN."
+  },
+  "cities": [
+    { "name": "Chicago", "lat": 41.8781, "lng": -87.6298 },
+    { "name": "New York", "lat": 40.7128, "lng": -74.0060 },
+    { "name": "Washington DC", "lat": 38.9072, "lng": -77.0369 },
+    { "name": "Atlanta", "lat": 33.7490, "lng": -84.3880 },
+    { "name": "Indianapolis", "lat": 39.7684, "lng": -86.1581 }
+  ],
+  "sites": [
+    { "name": "Chicago - Wacker", "city": "Chicago", "lat": 41.8860, "lng": -87.6380 },
+    { "name": "Chicago - Midway", "city": "Chicago", "lat": 41.7868, "lng": -87.7522 },
+    { "name": "New York", "city": "New York", "lat": 40.7128, "lng": -74.0060 },
+    { "name": "Washington DC", "city": "Washington DC", "lat": 38.9072, "lng": -77.0369 },
+    { "name": "Atlanta", "city": "Atlanta", "lat": 33.7490, "lng": -84.3880 },
+    { "name": "Indianapolis", "city": "Indianapolis", "lat": 39.7684, "lng": -86.1581 }
+  ],
+  "devices": [
+    {
+      "site": "Chicago - Wacker",
+      "name": "CHI-X20-1",
+      "vendor": "appear",
+      "device_role": "frame",
+      "model": "X20",
+      "firmware_version": "",
+      "mgmt_host": "10.0.1.10",
+      "access_mode": "direct_api",
+      "api_port": 443,
+      "api_scheme": "https",
+      "api_verify_tls": false,
+      "api_username_env": "CHI_X20_1_USER",
+      "api_password_env": "CHI_X20_1_PASS",
+      "snmp_community_env": "CHI_X20_1_SNMP_COMMUNITY",
+      "_driver_override_example": "omit driver_override to auto-resolve from vendor+model+firmware_version; set it (e.g. \"appear.x_platform.default\") only to pin a specific driver"
+    },
+    {
+      "site": "Chicago - Wacker",
+      "name": "CHI-MX4-ENC-1",
+      "vendor": "haivision",
+      "device_role": "encoder",
+      "model": "Makito X4",
+      "mgmt_host": "10.0.1.20",
+      "access_mode": "direct_api",
+      "api_port": 443,
+      "api_scheme": "https",
+      "api_verify_tls": false,
+      "api_username_env": "CHI_MX4_1_USER",
+      "api_password_env": "CHI_MX4_1_PASS"
+    },
+    {
+      "site": "Chicago - Midway",
+      "name": "CHI-NIMBRA-1",
+      "vendor": "net_insight",
+      "device_role": "node",
+      "model": "Nimbra MSR 600",
+      "mgmt_host": "10.0.1.30",
+      "access_mode": "direct_snmp",
+      "snmp_community_env": "CHI_NIMBRA_1_SNMP_COMMUNITY"
+    },
+    {
+      "site": "New York",
+      "name": "NYC-X20-1",
+      "vendor": "appear",
+      "device_role": "frame",
+      "model": "X20",
+      "mgmt_host": "10.0.2.10",
+      "access_mode": "direct_api",
+      "api_port": 443,
+      "api_scheme": "https",
+      "api_verify_tls": false,
+      "api_username_env": "NYC_X20_1_USER",
+      "api_password_env": "NYC_X20_1_PASS"
+    }
+  ],
+  "ports": [
+    { "device": "CHI-X20-1", "name": "SDI-1", "kind": "sdi_in", "slot": "1" },
+    { "device": "CHI-X20-1", "name": "SDI-2", "kind": "sdi_in", "slot": "2" },
+    { "device": "CHI-MX4-ENC-1", "name": "HEVC-1", "kind": "net" },
+    { "device": "CHI-NIMBRA-1", "name": "out-NYC", "kind": "sdi_out" },
+    { "device": "CHI-NIMBRA-1", "name": "out-DC", "kind": "sdi_out" },
+    { "device": "NYC-X20-1", "name": "SDI-1", "kind": "sdi_in", "slot": "1" }
+  ],
+  "flows": [
+    {
+      "signal": "News",
+      "source_device": "CHI-X20-1",
+      "source_port": "SDI-1",
+      "dest_city": "New York",
+      "dest_site": "New York",
+      "dest_device": "NYC-X20-1",
+      "direction": "contribution"
+    },
+    {
+      "signal": "News",
+      "source_device": "CHI-X20-1",
+      "source_port": "SDI-1",
+      "dest_city": "Washington DC",
+      "dest_site": "Washington DC",
+      "direction": "contribution"
+    },
+    {
+      "signal": "News",
+      "source_device": "CHI-X20-1",
+      "source_port": "SDI-1",
+      "dest_city": "Atlanta",
+      "dest_site": "Atlanta",
+      "direction": "contribution"
+    },
+    {
+      "signal": "Cubs",
+      "source_device": "CHI-X20-1",
+      "source_port": "SDI-2",
+      "dest_city": "New York",
+      "dest_site": "New York",
+      "direction": "contribution"
+    },
+    {
+      "signal": "Cubs",
+      "source_device": "CHI-X20-1",
+      "source_port": "SDI-2",
+      "dest_city": "Indianapolis",
+      "dest_site": "Indianapolis",
+      "direction": "contribution"
+    },
+    {
+      "signal": "HEVC-1",
+      "source_device": "CHI-MX4-ENC-1",
+      "source_port": "HEVC-1",
+      "dest_city": "New York",
+      "dest_site": "New York",
+      "direction": "contribution"
+    },
+    {
+      "signal": "News",
+      "source_device": "CHI-NIMBRA-1",
+      "source_port": "out-NYC",
+      "origin_device": "CHI-X20-1",
+      "origin_port": "SDI-1",
+      "dest_city": "New York",
+      "dest_site": "New York",
+      "direction": "distribution"
+    },
+    {
+      "signal": "News",
+      "source_device": "CHI-NIMBRA-1",
+      "source_port": "out-DC",
+      "origin_device": "CHI-X20-1",
+      "origin_port": "SDI-1",
+      "dest_city": "Washington DC",
+      "dest_site": "Washington DC",
+      "direction": "distribution"
+    }
+  ],
+  "_comment": "Core cities: Chicago, New York, Washington DC, Atlanta, Indianapolis. A city can have many sites; a site many devices; a device many inputs; a signal many destinations. An output can carry a signal that originated on a different device (origin_device / origin_port). Credential *values* live in environment variables named here — never in this file. Rename sites/devices to the real frames. If flows is omitted, bootstrap derives one flow per legacy signal. Leave status omitted so the dashboard derives path health from the host device."
+}
