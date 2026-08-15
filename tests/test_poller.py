@@ -85,7 +85,7 @@ class TestSnmpTarget(unittest.TestCase):
     def test_disabled_returns_none(self):
         device_id = self.db.add_device(
             site_id=self.site, name="CHI-X20-1", vendor="appear",
-            mgmt_host="10.0.1.10", snmp_community_env="COMM", snmp_enabled=False,
+            mgmt_host="10.0.1.10", snmp_community="public", snmp_enabled=False,
         )
         self.assertIsNone(snmp_target_for(self.db.get_device(device_id)))
 
@@ -157,38 +157,32 @@ class TestDriverCache(unittest.TestCase):
         self.assertEqual(driver._client.timeout, 2.0)
 
     def test_rebuilds_when_snmp_community_value_rotates(self):
-        os.environ["NEXNOC_TEST_COMM"] = "public"
-        self.addCleanup(lambda: os.environ.pop("NEXNOC_TEST_COMM", None))
         device_id = self.db.add_device(
             site_id=self.site, name="CHI-NIMBRA-1", vendor="generic_snmp",
             mgmt_host="10.0.2.10", access_mode="direct_snmp",
-            snmp_community_env="NEXNOC_TEST_COMM",
+            snmp_community="public",
         )
         device = self.db.get_device(device_id)
         first = cached_driver(self.db, device)
-        os.environ["NEXNOC_TEST_COMM"] = "rotated"
+        self.db.update_device(device_id, snmp_community="rotated")
+        device = self.db.get_device(device_id)
         second = cached_driver(self.db, device)
         self.assertIsNot(first, second)
         self.assertEqual(second.snmp_community, "rotated")
 
     def test_rebuilds_when_snmp_v3_secret_rotates(self):
-        os.environ["NEXNOC_TEST_V3_USER"] = "monitor"
-        os.environ["NEXNOC_TEST_V3_AUTH"] = "old-auth"
-        os.environ["NEXNOC_TEST_V3_PRIV"] = "old-priv"
-        self.addCleanup(lambda: os.environ.pop("NEXNOC_TEST_V3_USER", None))
-        self.addCleanup(lambda: os.environ.pop("NEXNOC_TEST_V3_AUTH", None))
-        self.addCleanup(lambda: os.environ.pop("NEXNOC_TEST_V3_PRIV", None))
         device_id = self.db.add_device(
             site_id=self.site, name="CHI-NIMBRA-V3", vendor="generic_snmp",
             mgmt_host="10.0.2.11", access_mode="direct_snmp",
             snmp_version="3",
-            snmp_v3_user_env="NEXNOC_TEST_V3_USER",
-            snmp_v3_auth_pass_env="NEXNOC_TEST_V3_AUTH",
-            snmp_v3_priv_pass_env="NEXNOC_TEST_V3_PRIV",
+            snmp_v3_user="monitor",
+            snmp_v3_auth_pass="old-auth",
+            snmp_v3_priv_pass="old-priv",
         )
         device = self.db.get_device(device_id)
         first = cached_driver(self.db, device)
-        os.environ["NEXNOC_TEST_V3_AUTH"] = "new-auth"
+        self.db.update_device(device_id, snmp_v3_auth_pass="new-auth")
+        device = self.db.get_device(device_id)
         second = cached_driver(self.db, device)
         self.assertIsNot(first, second)
         self.assertEqual(second.snmp_target.v3_auth_pass, "new-auth")

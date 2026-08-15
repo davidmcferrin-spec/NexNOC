@@ -49,7 +49,7 @@ from drivers.base import CollectResult, Driver, DriverResolutionError, resolve_d
 from drivers.http_util import DEFAULT_TIMEOUT_SECONDS
 from drivers.registry import DRIVER_REGISTRY
 from drivers.snmp_util import SnmpTarget
-from envfile import default_env_path, get_value, upsert_values
+from envfile import default_env_path, get_value
 from inventory_api import stamp_device_connectors
 
 logger = logging.getLogger("nexnoc.poller")
@@ -195,23 +195,23 @@ def bootstrap(db: Database, config: dict) -> None:
                 api_port=dev_cfg.get("api_port", 443),
                 api_scheme=dev_cfg.get("api_scheme", "https"),
                 api_verify_tls=dev_cfg.get("api_verify_tls", False),
-                api_username_env=dev_cfg.get("api_username_env"),
-                api_password_env=dev_cfg.get("api_password_env"),
-                snmp_community_env=dev_cfg.get("snmp_community_env"),
+                api_username=dev_cfg.get("api_username"),
+                api_password=dev_cfg.get("api_password"),
+                snmp_community=dev_cfg.get("snmp_community"),
                 snmp_host=dev_cfg.get("snmp_host"),
                 snmp_port=dev_cfg.get("snmp_port", 161),
                 snmp_version=dev_cfg.get("snmp_version", "2c"),
                 snmp_enabled=dev_cfg.get("snmp_enabled"),
                 snmp_trap_enabled=dev_cfg.get("snmp_trap_enabled", True),
-                snmp_v3_user_env=dev_cfg.get("snmp_v3_user_env"),
+                snmp_v3_user=dev_cfg.get("snmp_v3_user"),
                 snmp_v3_sec_level=dev_cfg.get("snmp_v3_sec_level", "authPriv"),
                 snmp_v3_auth_proto=dev_cfg.get("snmp_v3_auth_proto", "SHA"),
-                snmp_v3_auth_pass_env=dev_cfg.get("snmp_v3_auth_pass_env"),
+                snmp_v3_auth_pass=dev_cfg.get("snmp_v3_auth_pass"),
                 snmp_v3_priv_proto=dev_cfg.get("snmp_v3_priv_proto", "AES"),
-                snmp_v3_priv_pass_env=dev_cfg.get("snmp_v3_priv_pass_env"),
+                snmp_v3_priv_pass=dev_cfg.get("snmp_v3_priv_pass"),
                 nms_host=dev_cfg.get("nms_host"),
                 nms_port=dev_cfg.get("nms_port"),
-                nms_api_key_env=dev_cfg.get("nms_api_key_env"),
+                nms_api_key=dev_cfg.get("nms_api_key"),
                 nms_device_ref=dev_cfg.get("nms_device_ref"),
                 poll_enabled=dev_cfg.get(
                     "poll_enabled",
@@ -232,7 +232,7 @@ def bootstrap(db: Database, config: dict) -> None:
 
     _bootstrap_trunks_and_signals(db, config, existing_sites)
     _bootstrap_ports_and_flows(db, config, existing_sites, existing_cities)
-    _bootstrap_device_secrets(config)
+    _bootstrap_device_secrets(db, config)
 
 
 def _bootstrap_trunks_and_signals(db: Database, config: dict, existing_sites: dict) -> None:
@@ -340,24 +340,45 @@ def _bootstrap_cities(db: Database, config: dict) -> dict:
     return existing
 
 
-def _bootstrap_device_secrets(config: dict) -> None:
-    """Copy api_username / api_password from config.json into the env file.
+def _cfg_secret(dev_cfg: dict, value_key: str, env_key: str) -> Optional[str]:
+    """Prefer the JSON value; fall back to a leftover env-name lookup once."""
+    raw = dev_cfg.get(value_key)
+    if raw:
+        return str(raw)
+    name = (dev_cfg.get(env_key) or "").strip()
+    if not name:
+        return None
+    return os.environ.get(name) or get_value(default_env_path(), name)
 
-    Values stay on the device records in config (and later in SQL). The
-    poller still resolves them through env names. Never logs the values.
-    """
-    updates: dict[str, str] = {}
+
+def _bootstrap_device_secrets(db: Database, config: dict) -> None:
+    """Write config.json credential values onto device rows. Never logs values."""
+    by_name = {d.name: d for d in db.list_devices(include_decommissioned=True)}
+    loaded = 0
     for dev_cfg in config.get("devices", []):
-        user_env = dev_cfg.get("api_username_env")
-        pass_env = dev_cfg.get("api_password_env")
-        if user_env and dev_cfg.get("api_username"):
-            updates[user_env] = str(dev_cfg["api_username"])
-        if pass_env and dev_cfg.get("api_password"):
-            updates[pass_env] = str(dev_cfg["api_password"])
-    if not updates:
-        return
-    upsert_values(default_env_path(), updates)
-    logger.info("Loaded %d credential values from config.json into env file", len(updates))
+        device = by_name.get(dev_cfg.get("name"))
+        if device is None:
+            continue
+        updates = {}
+        for value_key, env_key in (
+            ("api_username", "api_username_env"),
+            ("api_password", "api_password_env"),
+            ("snmp_community", "snmp_community_env"),
+            ("snmp_v3_user", "snmp_v3_user_env"),
+            ("snmp_v3_auth_pass", "snmp_v3_auth_pass_env"),
+            ("snmp_v3_priv_pass", "snmp_v3_priv_pass_env"),
+            ("nms_api_key", "nms_api_key_env"),
+        ):
+            if getattr(device, value_key, None):
+                continue
+            value = _cfg_secret(dev_cfg, value_key, env_key)
+            if value:
+                updates[value_key] = value
+        if updates:
+            db.update_device(device.id, **updates)
+            loaded += len(updates)
+    if loaded:
+        logger.info("Loaded %d credential value(s) from config.json into the database", loaded)
 
 
 def _bootstrap_site_aliases(db: Database, config: dict, existing_sites: dict) -> None:
@@ -613,18 +634,6 @@ def _synthesize_flows_from_signals(db: Database, existing_devices: dict,
         logger.info("Derived flow %r from signal %d (id=%d)", label, sig["id"], flow_id)
 
 
-def resolve_env(name: Optional[str]) -> Optional[str]:
-    if not name:
-        return None
-    value = os.environ.get(name)
-    if value:
-        return value
-    value = get_value(default_env_path(), name)
-    if not value:
-        logger.warning("Env var %s is not set", name)
-    return value
-
-
 def snmp_target_for(device: Device) -> Optional[SnmpTarget]:
     """Build a GET target when SNMP is enabled or this box is SNMP-primary.
 
@@ -642,19 +651,19 @@ def snmp_target_for(device: Device) -> Optional[SnmpTarget]:
             host=host,
             port=device.snmp_port or 161,
             version="3",
-            v3_user=resolve_env(device.snmp_v3_user_env),
+            v3_user=device.snmp_v3_user,
             v3_sec_level=device.snmp_v3_sec_level or "authPriv",
             v3_auth_proto=device.snmp_v3_auth_proto or "SHA",
-            v3_auth_pass=resolve_env(device.snmp_v3_auth_pass_env),
+            v3_auth_pass=device.snmp_v3_auth_pass,
             v3_priv_proto=device.snmp_v3_priv_proto or "AES",
-            v3_priv_pass=resolve_env(device.snmp_v3_priv_pass_env),
+            v3_priv_pass=device.snmp_v3_priv_pass,
         )
     else:
         target = SnmpTarget(
             host=host,
             port=device.snmp_port or 161,
             version=version,
-            community=resolve_env(device.snmp_community_env),
+            community=device.snmp_community,
         )
     if not target.configured():
         return None
@@ -663,9 +672,9 @@ def snmp_target_for(device: Device) -> Optional[SnmpTarget]:
 
 def build_driver(db: Database, device: Device) -> Driver:
     """Resolve and construct the right driver for a device (vendor + model +
-    firmware_version, or an explicit driver_override), resolving credentials
-    from the environment variables named in its DB row. Records which
-    driver_id was resolved back onto the device row (informational).
+    firmware_version, or an explicit driver_override), using credentials
+    stored on the device row. Records which driver_id was resolved back
+    onto the device row (informational).
 
     Raises DriverResolutionError if no driver matches - see
     drivers/base.py:resolve_driver() for the matching rules."""
@@ -682,7 +691,7 @@ def build_driver(db: Database, device: Device) -> Driver:
         target = snmp_target_for(device)
         return driver_cls(
             host=device.snmp_host or device.mgmt_host,
-            snmp_community=resolve_env(device.snmp_community_env),
+            snmp_community=device.snmp_community,
             snmp_port=device.snmp_port,
             access_mode=device.access_mode,
             snmp_target=target,
@@ -697,8 +706,8 @@ def build_driver(db: Database, device: Device) -> Driver:
         host=device.mgmt_host,
         port=device.api_port,
         scheme=device.api_scheme,
-        username=resolve_env(device.api_username_env),
-        password=resolve_env(device.api_password_env),
+        username=device.api_username,
+        password=device.api_password,
         verify_tls=device.api_verify_tls,
         timeout=HTTP_TIMEOUT_SECONDS,
     )
@@ -715,25 +724,20 @@ def _driver_identity(device: Device) -> tuple:
         device.api_port,
         device.api_scheme,
         device.api_verify_tls,
-        device.api_username_env,
-        device.api_password_env,
-        resolve_env(device.api_username_env),
-        resolve_env(device.api_password_env),
+        device.api_username,
+        device.api_password,
         device.snmp_host,
         device.snmp_port,
         device.access_mode,
-        device.snmp_community_env,
-        device.snmp_v3_user_env,
-        device.snmp_v3_auth_pass_env,
-        device.snmp_v3_priv_pass_env,
+        device.snmp_community,
+        device.snmp_v3_user,
+        device.snmp_v3_auth_pass,
+        device.snmp_v3_priv_pass,
         device.snmp_v3_sec_level,
         device.snmp_v3_auth_proto,
         device.snmp_v3_priv_proto,
         device.snmp_version,
-        resolve_env(device.snmp_community_env),
-        resolve_env(device.snmp_v3_user_env),
-        resolve_env(device.snmp_v3_auth_pass_env),
-        resolve_env(device.snmp_v3_priv_pass_env),
+        device.nms_api_key,
     )
 
 

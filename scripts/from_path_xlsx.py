@@ -10,8 +10,7 @@ keyed by Control IP (one X20 per site in this sheet). Devices without a
 management IP get empty mgmt_host and poll_enabled=false.
 
 Username/password values from the sheet are written onto each device in
-config.json (api_username / api_password) and also into config/nexnoc.env.
-config.json is gitignored.
+config.json (api_username / api_password). config.json is gitignored.
 """
 from __future__ import annotations
 
@@ -23,11 +22,6 @@ import zipfile
 import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from pathlib import Path
-
-import sys
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from envfile import default_env_path, upsert_values  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 XLSX = ROOT / "Example Docs" / "Newsnation Global Path Naming.xlsx"
@@ -244,49 +238,6 @@ def norm_place(s: str) -> str | None:
     return key
 
 
-def env_base(name: str) -> str:
-    return name.replace(".", "_").replace("-", "_")
-
-
-def ensure_env_example(device_list: list[dict]) -> None:
-    """Append missing *_USER / *_PASS placeholders. Never overwrite values."""
-    path = ROOT / "config" / "nexnoc.env.example"
-    existing = path.read_text(encoding="utf-8") if path.is_file() else (
-        "# NexNOC credentials — copy to /etc/nexnoc/nexnoc.env (mode 0640).\n"
-        "# Names must match the *_env fields in config.json.\n"
-        "# Never put values in config.json. Placeholders only — not production secrets.\n\n"
-    )
-    present = set()
-    for line in existing.splitlines():
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            present.add(stripped.split("=", 1)[0].strip())
-    additions = []
-    for d in device_list:
-        for key in (d.get("api_username_env"), d.get("api_password_env")):
-            if key and key not in present:
-                additions.append(f"{key}=change_me")
-                present.add(key)
-    if not additions:
-        return
-    if not existing.endswith("\n"):
-        existing += "\n"
-    if not existing.endswith("\n\n"):
-        existing += "\n"
-    existing += "# --- additional names from path sheet (fill in the portal or here) ---\n"
-    existing += "\n".join(additions) + "\n"
-    path.write_text(existing, encoding="utf-8")
-
-
-def write_sheet_secrets(secrets: dict[str, str], env_path: Path | None = None) -> int:
-    """Write username/password values to nexnoc.env. Never logs values."""
-    clean = {k: v for k, v in secrets.items() if k and v}
-    if not clean:
-        return 0
-    upsert_values(env_path or default_env_path(), clean)
-    return len(clean)
-
-
 def open_xlsx(path: Path) -> zipfile.ZipFile:
     try:
         return zipfile.ZipFile(path)
@@ -296,7 +247,7 @@ def open_xlsx(path: Path) -> zipfile.ZipFile:
         return zipfile.ZipFile(tmp)
 
 
-def build_inventory(xlsx: Path | None = None, collect_secrets: dict | None = None) -> dict:
+def build_inventory(xlsx: Path | None = None) -> dict:
     path = xlsx or XLSX
     zf = open_xlsx(path)
     ss = load_shared_strings(zf)
@@ -343,7 +294,6 @@ def build_inventory(xlsx: Path | None = None, collect_secrets: dict | None = Non
                 extra = slug(serial or stream_ip or hint or "X", 8)
                 name = f"{name}-{extra}"
             names_taken.add(name)
-            env = env_base(name)
             devices[key] = {
                 "site": site,
                 "name": name,
@@ -356,8 +306,6 @@ def build_inventory(xlsx: Path | None = None, collect_secrets: dict | None = Non
                 "api_port": 443,
                 "api_scheme": "https",
                 "api_verify_tls": False,
-                "api_username_env": f"{env}_USER",
-                "api_password_env": f"{env}_PASS",
                 "poll_enabled": bool(host),
             }
             if serial:
@@ -637,11 +585,6 @@ def build_inventory(xlsx: Path | None = None, collect_secrets: dict | None = Non
 
     device_list = []
     for d in devices.values():
-        if collect_secrets is not None:
-            if d.get("api_username"):
-                collect_secrets[d["api_username_env"]] = d["api_username"]
-            if d.get("api_password"):
-                collect_secrets[d["api_password_env"]] = d["api_password"]
         row = {k: v for k, v in d.items() if not k.startswith("_")}
         device_list.append(row)
 
@@ -673,12 +616,9 @@ def build_inventory(xlsx: Path | None = None, collect_secrets: dict | None = Non
 
 
 def main() -> None:
-    secrets: dict[str, str] = {}
-    config = build_inventory(collect_secrets=secrets)
+    config = build_inventory()
     out = ROOT / "config.json"
     out.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-    ensure_env_example(config["devices"])
-    secret_count = write_sheet_secrets(secrets)
     print(f"wrote {out}")
     print(
         f"cities={len(config['cities'])} sites={len(config['sites'])} "
@@ -693,7 +633,6 @@ def main() -> None:
         print(f"  {d['name']:28} {d['vendor']:10} {d['site']:24} {host}")
     print(f"pending (no management IP): {pending}")
     print(f"devices with credentials in config.json: {sum(1 for d in config['devices'] if d.get('api_username') or d.get('api_password'))}")
-    print(f"credential values also written to env file: {secret_count}")
 
 
 if __name__ == "__main__":

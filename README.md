@@ -97,7 +97,7 @@ no MySQL.
 ```bash
 sudo ./setup.sh
 # edit /etc/nexnoc/config.json  (inventory)
-# edit /etc/nexnoc/nexnoc.env   (credential values; mode 0640)
+# set device usernames/passwords in Inventory (stored in noc.db)
 sudo systemctl restart nexnoc-poller
 ```
 
@@ -177,8 +177,8 @@ All three channels are capable per device (operator can opt out):
    override is confirmed.
 
 Production uses `nexnoc-poller.service` / `nexnoc-web.service` /
-`nexnoc-trapd.service` from `setup.sh`, with credentials in
-`/etc/nexnoc/nexnoc.env` (`EnvironmentFile=`, mode 0640). SNMPv3
+`nexnoc-trapd.service` from `setup.sh`. Device credentials live on the
+device row in SQLite. SNMPv3
 traps can be handed off from `snmptrapd` — see
 `config/snmptrapd.nexnoc.conf`. Management IPs must be unique (empty
 host is allowed many times for pending boxes).
@@ -258,7 +258,7 @@ per-user grant/deny overrides win.
 | Role | Map / links / inventory | Inventory writes | Users / LDAP |
 |---|---|---|---|
 | viewer | read | | |
-| operator | read | yes (including `nexnoc.env` secrets) | |
+| operator | read | yes (including device passwords) | |
 | admin | read | yes | yes |
 
 `/kiosk` stays anonymous. `GET /api/state` and `GET /api/time` stay public
@@ -304,16 +304,16 @@ instead of waiting for the next poll cycle.
 `db.merge_devices(source, target)` folds a duplicate device entry into
 another: ports and flows move to the target (same-named ports collapse,
 flows remap to the surviving port), blank target fields (mgmt_host,
-credential env names, model/firmware) are backfilled from the source, then
+credentials, model/firmware) are backfilled from the source, then
 the source row is deleted. Exposed through the bulk inventory API
 (`POST .../bulk` with `merge_into`, or `patch`/`delete` across a set of ids)
 for admins cleaning up inventory without hand-editing SQLite.
 
 ## Security notes
 
-- Credentials are never stored in the DB or `config.json` — only the *names*
-  of environment variables that hold them. Resolved via `os.environ` at
-  poll time (`poller.py:resolve_env`).
+- Device credentials (API username/password, SNMP community/v3, NMS key)
+  are stored on the device row. The poller reads those columns. Passwords
+  are never returned by the HTTP API or written to the log.
 - `api_verify_tls` defaults to `False` per-device because broadcast
   appliances commonly ship self-signed certs — an explicit per-device
   opt-out, not a silent global default.
@@ -353,7 +353,7 @@ for admins cleaning up inventory without hand-editing SQLite.
 | `systemd/` | `nexnoc-poller.service` + `nexnoc-web.service` + `nexnoc-trapd.service` |
 | `trapd.py` | SNMPv1/v2c UDP trap listener (v3 via snmptrapd traphandle) |
 | `config/apache-nexnoc.conf` | Apache vhost: `web/` + `/tiles` + `/uploads/pins`; `/api/` → loopback |
-| `config/nexnoc.env.example` | Credential env template (copied to `/etc/nexnoc/nexnoc.env`) |
+| `config/nexnoc.env.example` | Optional process env file (copied to `/etc/nexnoc/nexnoc.env`) |
 | `tests/` | Unit tests (no network) |
 
 ## Adding a new driver

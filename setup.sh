@@ -12,7 +12,7 @@
 # Layout:
 #   /opt/nexnoc              code
 #   /etc/nexnoc/config.json  inventory (sites/devices/trunks/signals)
-#   /etc/nexnoc/nexnoc.env   credentials (0600/0640, never in git)
+#   /etc/nexnoc/nexnoc.env   optional process env (0640)
 #   /var/lib/nexnoc/noc.db   SQLite
 #
 # Python is stdlib only — no pip. SNMP uses snmpget; LDAP uses ldapsearch.
@@ -62,7 +62,7 @@ Env overrides:
   NEXNOC_WEB_PORT     loopback HTTP port (default 8080)
   NEXNOC_SERVER_NAME  Apache ServerName  (default: hostname -f)
 
-After install, edit ${ETC}/config.json and ${ETC}/nexnoc.env, then:
+After install, edit ${ETC}/config.json (or use Inventory), then:
   sudo systemctl restart nexnoc-poller
 EOF
 }
@@ -486,15 +486,15 @@ Setup complete.
 
   Code:    ${PREFIX}
   Config:  ${ETC}/config.json
-  Secrets: ${ETC}/nexnoc.env
   DB:      ${DATA}/noc.db
+  Env:     ${ETC}/nexnoc.env  (optional process settings)
   Tiles:   ${DATA}/tiles     (empty until you run scripts/fetch_tiles.py)
   Apache:  http://${name}/   (site from ${PREFIX}/web; /api → 127.0.0.1:${WEB_PORT})
   Kiosk:   http://${name}/kiosk
 
 Next:
   1. Edit ${ETC}/config.json with real sites / devices / trunks
-  2. Put credential values in ${ETC}/nexnoc.env (mode 0640)
+  2. Set device usernames/passwords in Inventory (stored in noc.db)
   3. Optional — local map tiles (no CDN): python3 ${PREFIX}/scripts/fetch_tiles.py --out ${DATA}/tiles
      then set map.local_tile_dir to ${DATA}/tiles in config.json and restart nexnoc-web
   4. sudo ${PREFIX}/setup.sh update   # after git pull, or re-run install

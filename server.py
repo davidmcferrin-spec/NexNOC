@@ -42,9 +42,8 @@ from inventory_api import SECRET_KEYS, default_pin_dir, device_secret_flags, han
 from pins import BUILTIN_PINS
 
 _PUBLIC_STATE_DROP = {
-    "api_username_env", "api_password_env", "snmp_community_env",
-    "snmp_v3_user_env", "snmp_v3_auth_pass_env", "snmp_v3_priv_pass_env",
-    "nms_api_key_env",
+    "api_username", "api_password", "snmp_community",
+    "snmp_v3_user", "snmp_v3_auth_pass", "snmp_v3_priv_pass", "nms_api_key",
     "api_username_set", "api_password_set", "snmp_community_set",
     "snmp_v3_user_set", "snmp_v3_auth_set", "snmp_v3_priv_set",
     "credentials_ready", "snmp_ready",
@@ -117,7 +116,7 @@ def _count_by(items: list[str]) -> dict[str, int]:
 
 def serialize_device(device: Device, site_name: str, city_name: str = "",
                      city_id: Optional[int] = None, env_path: Optional[Path] = None) -> dict:
-    flags = device_secret_flags(device, env_path or default_env_path())
+    flags = device_secret_flags(device)
     return {
         "id": device.id,
         "site_id": device.site_id,
@@ -959,7 +958,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--env-file", dest="env_file",
                         default=os.environ.get("NEXNOC_ENV_FILE", ""),
-                        help="Env file for credential values (default: /etc/nexnoc/nexnoc.env or config/nexnoc.env)")
+                        help="Optional env file (legacy secret migration; default /etc/nexnoc/nexnoc.env)")
     parser.add_argument("--pin-dir", dest="pin_dir",
                         default=os.environ.get("NEXNOC_PIN_DIR", ""),
                         help="Directory for uploaded site pin images")

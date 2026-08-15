@@ -49,7 +49,7 @@ PERMISSION_META = {
     },
     "manage_credentials": {
         "label": "Manage credentials",
-        "description": "Write device secret values into nexnoc.env.",
+        "description": "Write device usernames, passwords, and SNMP secrets on the device row.",
     },
     "manage_users": {
         "label": "Manage users",

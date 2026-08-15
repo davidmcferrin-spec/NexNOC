@@ -1,9 +1,8 @@
 """Read/write KEY=value env files (nexnoc.env) without logging values.
 
-DB and config.json store only env *names*. Values live here (or in the
-process environment). The portal writes through this module; the poller
-re-reads the file on each resolve so a portal edit takes effect without
-restarting nexnoc-poller.
+Device credentials live on the device row, not here. This file is only
+for optional process-level settings (and one-time migration of old
+*_USER / *_PASS names onto device rows).
 """
 from __future__ import annotations
 

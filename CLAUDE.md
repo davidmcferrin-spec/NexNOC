@@ -63,7 +63,7 @@ were pulled off the active roadmap — see "Future ideas" below.
   checking a community), logged to `trap_log` regardless of match, and —
   only if matched — run through the resolved driver's `interpret_trap()`
   to flip device status (`degraded`/`healthy`) without waiting for the
-  next poll. Community strings and v3 secrets are never stored or logged,
+  next poll. Community strings and v3 secrets live on the device row and are never logged,
   only used in-memory to match.
 - **Device merge exists for inventory cleanup** (e.g. a device got added
   twice, or discovered under two hostnames): `db.merge_devices(source,
@@ -150,8 +150,8 @@ ships full of `change_me` placeholders that need real per-device values
 before the poller can reach anything. Log rotation, systemd hardening
 (`NoNewPrivileges` on poller/trapd — not nexnoc-web, which must `sudo`
   `nexnoc-svc`; `ProtectSystem=strict`/capability-scoped trapd), and
-credential-never-in-DB were already handled before this pass — don't
-re-flag them.
+device credentials live on the device row (not env vars) — don't
+re-flag that as a gap.
 
 ## Future ideas — not scheduled
 Not on the active roadmap. No driver hooks or UI for these exist beyond
@@ -200,9 +200,9 @@ Sub-10s breaks stay on traps (`nexnoc-trapd`). Board `/api/state` every
 - The poller caches one `Driver` instance per device (Haivision session
   cookies). Rebuilds when host/creds/model/firmware/override change.
   `ping()` must stay cheap; HTTP timeout is 2s (`http_util`).
-- Credentials: DB/config store only env var *names*; values resolved from
-  `os.environ` at poll time (`poller.py:resolve_env`). Never log credential
-  values.
+- Credentials: stored on the device row (`api_username`, `api_password`,
+  SNMP community/v3, NMS key). The poller reads those columns. Never log
+  credential values. The HTTP API never returns passwords.
 - Device status transitions require `CONSECUTIVE_FAILURES_THRESHOLD` (3)
   misses before flipping to `unreachable`, to avoid flapping. In-memory
   failure counter resets on poller restart (acceptable).

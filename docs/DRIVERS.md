@@ -288,8 +288,8 @@ In `config.json` or the inventory UI:
   "api_port": 443,
   "api_scheme": "https",
   "api_verify_tls": false,
-  "api_username_env": "CHI_MX4_2_USER",
-  "api_password_env": "CHI_MX4_2_PASS"
+  "api_username": "admin",
+  "api_password": "change_me"
 }
 ```
 
@@ -299,8 +299,8 @@ In `config.json` or the inventory UI:
   you need a ranged driver immediately.
 - Omit `driver_override` unless auto-resolve is wrong for one unit. Pin
   with the exact `driver_id`.
-- Store **env var names** for credentials, never values. Never log
-  credential values.
+- Store credentials on the device row (`api_username` / `api_password`).
+  Never log credential values.
 
 After the next poll, `devices.resolved_driver` shows which class was used.
 The inventory form’s monitor-driver dropdown lists each driver’s

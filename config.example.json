@@ -36,9 +36,9 @@
       "api_port": 443,
       "api_scheme": "https",
       "api_verify_tls": false,
-      "api_username_env": "CHI_X20_1_USER",
-      "api_password_env": "CHI_X20_1_PASS",
-      "snmp_community_env": "CHI_X20_1_SNMP_COMMUNITY",
+      "api_username": "admin",
+      "api_password": "change_me",
+      "snmp_community": "change_me",
       "_driver_override_example": "omit driver_override to auto-resolve from vendor+model+firmware_version; set it (e.g. \"appear.x_platform.default\") only to pin a specific driver"
     },
     {
@@ -52,8 +52,8 @@
       "api_port": 443,
       "api_scheme": "https",
       "api_verify_tls": false,
-      "api_username_env": "CHI_MX4_1_USER",
-      "api_password_env": "CHI_MX4_1_PASS"
+      "api_username": "admin",
+      "api_password": "change_me"
     },
     {
       "site": "Chicago - Midway",
@@ -63,7 +63,7 @@
       "model": "Nimbra MSR 600",
       "mgmt_host": "10.0.1.30",
       "access_mode": "direct_snmp",
-      "snmp_community_env": "CHI_NIMBRA_1_SNMP_COMMUNITY"
+      "snmp_community": "change_me"
     },
     {
       "site": "New York",
@@ -76,8 +76,8 @@
       "api_port": 443,
       "api_scheme": "https",
       "api_verify_tls": false,
-      "api_username_env": "NYC_X20_1_USER",
-      "api_password_env": "NYC_X20_1_PASS"
+      "api_username": "admin",
+      "api_password": "change_me"
     }
   ],
   "ports": [

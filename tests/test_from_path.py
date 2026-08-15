@@ -95,8 +95,8 @@ class TestFromPathXlsx(unittest.TestCase):
 
     def test_credentials_live_on_device_records(self):
         for d in self.cfg["devices"]:
-            self.assertTrue(d["api_username_env"].endswith("_USER"))
-            self.assertTrue(d["api_password_env"].endswith("_PASS"))
+            self.assertNotIn("api_username_env", d)
+            self.assertNotIn("api_password_env", d)
         ny = next(d for d in self.cfg["devices"] if d["name"] == "NY-HAI-1030013")
         self.assertEqual(ny.get("api_username"), "admin")
         self.assertTrue(ny.get("api_password"))

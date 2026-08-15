@@ -7,8 +7,8 @@ JSON line to this process's --notify-socket, or invoke:
 
     python3 trapd.py --db noc.db --from-snmptrapd
 
-Community strings are used only to match a device; they are never stored
-or logged. Bind port 162 requires CAP_NET_BIND_SERVICE (the systemd unit
+Community strings are compared to the value on the device row and are
+never logged. Bind port 162 requires CAP_NET_BIND_SERVICE (the systemd unit
 sets this). For unprivileged dev: --port 1162.
 """
 from __future__ import annotations
@@ -33,8 +33,7 @@ from drivers.base import (
     resolve_driver,
 )
 from drivers.registry import DRIVER_REGISTRY
-from envfile import default_env_path, get_value
-from poller import resolve_env, setup_logging
+from poller import setup_logging
 
 logger = logging.getLogger("nexnoc.trapd")
 
@@ -235,14 +234,10 @@ def encode_snmpv2c_trap(community: str, trap_oid: str,
     return tlv(0x30, enc_int(1) + enc_str(community) + pdu)
 
 
-def _community_matches(device, community: str, env_path) -> bool:
+def _community_matches(device, community: str) -> bool:
     if (device.snmp_version or "2c") == "3":
         return True
-    expected = os.environ.get(device.snmp_community_env or "") or get_value(
-        env_path, device.snmp_community_env or "",
-    )
-    if not expected:
-        expected = resolve_env(device.snmp_community_env)
+    expected = (device.snmp_community or "").strip()
     if not expected:
         return True
     return community == expected
@@ -250,13 +245,12 @@ def _community_matches(device, community: str, env_path) -> bool:
 
 def apply_trap(db: Database, source_ip: str, decoded: dict,
                env_path=None) -> Optional[int]:
-    env_path = env_path or default_env_path()
     device = db.find_device_by_mgmt_host(source_ip)
     if device is None and decoded.get("agent_addr"):
         device = db.find_device_by_mgmt_host(decoded["agent_addr"])
     matched = False
     if device is not None and device.snmp_trap_enabled:
-        if _community_matches(device, decoded.get("community") or "", env_path):
+        if _community_matches(device, decoded.get("community") or ""):
             matched = True
     trap_id = db.add_trap(
         source_ip=source_ip,

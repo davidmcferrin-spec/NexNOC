@@ -52,16 +52,14 @@ repeat the `ufw allow from` line per subnet rather than opening it broadly.
 
 ## 3. Credentials
 
-`config/nexnoc.env.example` is what `setup.sh` copies to
-`/etc/nexnoc/nexnoc.env` on first install — every value in it is a
-`change_me` placeholder (or a demo `admin`/`change_me` pair for the sample
-devices). Before relying on this install:
+Device usernames, passwords, and SNMP secrets are stored on the device
+row (Inventory, or `api_username` / `api_password` in `config.json` on
+first import). `/etc/nexnoc/nexnoc.env` is no longer the device-secret
+store. Before relying on this install:
 
-- Fill in real values for every `*_USER`/`*_PASS`/`*_SNMP_COMMUNITY` name
-  your `config.json` actually references. `poller.py:resolve_env` will log
-  a missing-credential error per device rather than silently skip it, so
-  gaps show up in `journalctl -u nexnoc-poller`, but check the full list
-  once up front rather than discovering it device-by-device.
+- Confirm each polled device has a username/password (or SNMP community)
+  on its Inventory row. Missing values show up as failed API/SNMP polls
+  in `journalctl -u nexnoc-poller`.
 - Change the seeded `admin`/`password` and `user`/`password` logins on
   first sign-in — `must_change_password` forces this, but confirm it
   actually happened for every seeded account (Admin → Users) rather than
@@ -110,7 +108,7 @@ Confirmed in place, listed here so this checklist doesn't re-raise them:
   `nexnoc-web` logs to stdout → journald, which rotates itself.
   `audit.jsonl` self-rotates at 10MB (`audit.py`). Apache's own logs are
   covered by the distro's existing `/etc/logrotate.d/apache2`.
-- **Credential storage**: DB and `config.json` never hold secret values,
-  only env var names — see CLAUDE.md's Conventions section.
+- **Credential storage**: device secrets live on the device row. The HTTP
+  API never returns passwords. Never log credential values.
 - **Cookie security**: `HttpOnly` + `SameSite=Lax` always; `Secure` turns
   on automatically once step 1 (TLS) is done — no separate flag to flip.

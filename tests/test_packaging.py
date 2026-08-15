@@ -83,20 +83,12 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("DRIVER_REGISTRY", text)
         self.assertIn("VALID_VENDORS", text)
 
-    def test_env_example_matches_config_example_names(self):
-        env = _read("config/nexnoc.env.example")
+    def test_config_example_stores_device_secrets_inline(self):
         cfg = _read("config.example.json")
-        for name in (
-            "CHI_X20_1_USER",
-            "CHI_X20_1_PASS",
-            "CHI_MX4_1_USER",
-            "CHI_MX4_1_PASS",
-            "NYC_X20_1_USER",
-            "NYC_X20_1_PASS",
-            "CHI_NIMBRA_1_SNMP_COMMUNITY",
-        ):
-            self.assertIn(name, env)
-            self.assertIn(name, cfg)
+        self.assertNotIn("api_username_env", cfg)
+        self.assertIn('"api_username": "admin"', cfg)
+        self.assertIn('"api_password": "change_me"', cfg)
+        self.assertIn('"snmp_community": "change_me"', cfg)
 
 
 if __name__ == "__main__":

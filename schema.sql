@@ -93,30 +93,30 @@ CREATE TABLE IF NOT EXISTS devices (
     api_port            INTEGER NOT NULL DEFAULT 443,
     api_scheme          TEXT NOT NULL DEFAULT 'https' CHECK (api_scheme IN ('http','https')),
     api_verify_tls      INTEGER NOT NULL DEFAULT 0,  -- many broadcast appliances run self-signed certs
-    api_username_env    TEXT,                       -- name of env var holding the username
-    api_password_env    TEXT,                       -- name of env var holding the password
+    api_username        TEXT,                       -- API login (stored on the device row)
+    api_password        TEXT,                       -- API password (never returned by the API)
 
     -- SNMP: parallel monitoring channel (GET v1/v2c/v3) in addition to the
     -- vendor API when snmp_enabled=1. Traps are accepted when snmp_trap_enabled=1.
-    -- Values for community / v3 secrets are env var *names*, never plaintext.
+    -- Community / v3 secrets live on this row. Never returned by the HTTP API.
     snmp_host           TEXT,                       -- usually same as mgmt_host
     snmp_port           INTEGER NOT NULL DEFAULT 161,
-    snmp_community_env  TEXT,
+    snmp_community      TEXT,
     snmp_version        TEXT NOT NULL DEFAULT '2c'
                             CHECK (snmp_version IN ('1','2c','3')),
     snmp_enabled        INTEGER NOT NULL DEFAULT 0, -- GET alongside API when set
     snmp_trap_enabled   INTEGER NOT NULL DEFAULT 1,
-    snmp_v3_user_env    TEXT,
+    snmp_v3_user        TEXT,
     snmp_v3_sec_level   TEXT DEFAULT 'authPriv',
     snmp_v3_auth_proto  TEXT DEFAULT 'SHA',
-    snmp_v3_auth_pass_env TEXT,
+    snmp_v3_auth_pass   TEXT,
     snmp_v3_priv_proto  TEXT DEFAULT 'AES',
-    snmp_v3_priv_pass_env TEXT,
+    snmp_v3_priv_pass   TEXT,
 
     -- Central-NMS fields (via_nms mode; e.g. Net Insight Nimbra Vision)
     nms_host             TEXT,
     nms_port             INTEGER,
-    nms_api_key_env      TEXT,
+    nms_api_key          TEXT,
     nms_device_ref       TEXT,                      -- this device's identifier *within* the NMS, if different from `name`
 
     poll_enabled        INTEGER NOT NULL DEFAULT 1,

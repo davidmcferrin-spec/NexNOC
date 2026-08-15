@@ -1435,7 +1435,7 @@
 
   function deviceForm(d, defaults = {}) {
     const sites = (state.sites || []).map((s) => ({ value: s.id, label: s.name }));
-    const cred = d ? `User ${credFlag(d.api_username_set)} · Pass ${credFlag(d.api_password_set)}` : "Values are stored in nexnoc.env, not config.json.";
+    const cred = d ? `User ${credFlag(d.api_username_set)} · Pass ${credFlag(d.api_password_set)}` : "Username and password are stored on the device." ;
     return `
       <form class="form">
         <h2>${d ? escapeHtml(d.name) : "New device"}</h2>
@@ -1462,19 +1462,16 @@
             { value: "via_nms", label: "via_nms" },
           ], d?.access_mode || "direct_api")}
           ${field("API port", "api_port", d?.api_port ?? 443)}
-          ${field("Username env name", "api_username_env", d?.api_username_env || "")}
-          ${field("Password env name", "api_password_env", d?.api_password_env || "")}
-          <label>Username value (write-only)<input name="api_username" type="text" autocomplete="off" placeholder="${d?.api_username_set ? "saved — type to replace" : "not set yet"}"></label>
-          <label>Password value (write-only)<input name="api_password" type="password" autocomplete="new-password" placeholder="${d?.api_password_set ? "saved — type to replace" : "not set yet"}"></label>
+          ${field("Username", "api_username", d?.api_username || "")}
+          <label>Password<input name="api_password" type="password" autocomplete="new-password" placeholder="${d?.api_password_set ? "saved — type to replace" : "not set yet"}"></label>
           ${selectField("SNMP version", "snmp_version", [
             { value: "1", label: "v1" },
             { value: "2c", label: "v2c" },
             { value: "3", label: "v3" },
           ], d?.snmp_version || "2c")}
           ${field("SNMP port", "snmp_port", d?.snmp_port ?? 161)}
-          ${field("Community env name", "snmp_community_env", d?.snmp_community_env || "")}
-          <label>Community value (write-only)<input name="snmp_community" type="password" autocomplete="new-password" placeholder="${d?.snmp_community_set ? "saved — type to replace" : "not set yet"}"></label>
-          ${field("v3 user env name", "snmp_v3_user_env", d?.snmp_v3_user_env || "")}
+          <label>Community<input name="snmp_community" type="password" autocomplete="new-password" placeholder="${d?.snmp_community_set ? "saved — type to replace" : "not set yet"}"></label>
+          ${field("v3 user", "snmp_v3_user", d?.snmp_v3_user || "")}
           ${selectField("v3 security", "snmp_v3_sec_level", [
             { value: "noAuthNoPriv", label: "noAuthNoPriv" },
             { value: "authNoPriv", label: "authNoPriv" },
@@ -1482,11 +1479,8 @@
           ], d?.snmp_v3_sec_level || "authPriv")}
           ${field("v3 auth proto", "snmp_v3_auth_proto", d?.snmp_v3_auth_proto || "SHA")}
           ${field("v3 priv proto", "snmp_v3_priv_proto", d?.snmp_v3_priv_proto || "AES")}
-          ${field("v3 auth pass env", "snmp_v3_auth_pass_env", d?.snmp_v3_auth_pass_env || "")}
-          ${field("v3 priv pass env", "snmp_v3_priv_pass_env", d?.snmp_v3_priv_pass_env || "")}
-          <label>v3 user value (write-only)<input name="snmp_v3_user" type="text" autocomplete="off" placeholder="${d?.snmp_v3_user_set ? "saved — type to replace" : "not set yet"}"></label>
-          <label>v3 auth pass (write-only)<input name="snmp_v3_auth_pass" type="password" autocomplete="new-password"></label>
-          <label>v3 priv pass (write-only)<input name="snmp_v3_priv_pass" type="password" autocomplete="new-password"></label>
+          <label>v3 auth pass<input name="snmp_v3_auth_pass" type="password" autocomplete="new-password" placeholder="${d?.snmp_v3_auth_set ? "saved — type to replace" : ""}"></label>
+          <label>v3 priv pass<input name="snmp_v3_priv_pass" type="password" autocomplete="new-password" placeholder="${d?.snmp_v3_priv_set ? "saved — type to replace" : ""}"></label>
           <label class="wide"><input name="snmp_enabled" type="checkbox"${(!d || d.snmp_enabled) ? " checked" : ""}> SNMP GET in addition to API (v1/v2c/v3)</label>
           <label class="wide"><input name="snmp_trap_enabled" type="checkbox"${(!d || d.snmp_trap_enabled) ? " checked" : ""}> Accept SNMP traps from this host</label>
           <label class="wide"><input name="poll_enabled" type="checkbox"${(!d || d.poll_enabled) ? " checked" : ""}> Poll this device</label>
@@ -1523,7 +1517,7 @@
     return `
       <form class="form" id="bulk-inv-form">
         <h2>Bulk edit ${n} device${n === 1 ? "" : "s"}</h2>
-        <p class="muted">Empty fields are left alone. Username/password apply to each device's own env names.</p>
+        <p class="muted">Empty fields are left alone. Username/password write onto each selected device.</p>
         <div class="form-grid">
           ${leaveSelect("Site", "site_id", (state.sites || []).map((s) => ({ value: s.id, label: s.name })))}
           ${leaveSelect("Vendor", "vendor", [
@@ -1541,8 +1535,8 @@
             { value: "true", label: "Enable" },
             { value: "false", label: "Disable" },
           ])}
-          <label>Username value (write-only)<input name="api_username" type="text" autocomplete="off" placeholder="leave blank to keep"></label>
-          <label>Password value (write-only)<input name="api_password" type="password" autocomplete="new-password" placeholder="leave blank to keep"></label>
+          <label>Username<input name="api_username" type="text" autocomplete="off" placeholder="leave blank to keep"></label>
+          <label>Password<input name="api_password" type="password" autocomplete="new-password" placeholder="leave blank to keep"></label>
         </div>
         ${mergeBlock}
         <div class="form-actions">

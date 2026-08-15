@@ -7,7 +7,6 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from db import Database  # noqa: E402
-from envfile import upsert_values  # noqa: E402
 from drivers.base import Driver, LINK_UP  # noqa: E402
 from poller import _handle_poll_result, held_trap  # noqa: E402
 from trapd import (  # noqa: E402
@@ -28,10 +27,9 @@ class TestSnmpTraps(unittest.TestCase):
         self.site = self.db.add_site("Chicago")
         self.device_id = self.db.add_device(
             site_id=self.site, name="CHI-X20-1", vendor="appear",
-            mgmt_host="10.1.1.10", snmp_community_env="CHI_X20_1_SNMP",
+            mgmt_host="10.1.1.10", snmp_community="secret-comm",
             snmp_enabled=True, snmp_trap_enabled=True,
         )
-        upsert_values(self.env_path, {"CHI_X20_1_SNMP": "secret-comm"})
 
     def tearDown(self):
         self.tmpdir.cleanup()

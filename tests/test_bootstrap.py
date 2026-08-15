@@ -196,19 +196,14 @@ class TestBootstrap(unittest.TestCase):
         self.assertAlmostEqual(site["lat"], 38.9178, places=4)
         self.assertAlmostEqual(site["lng"], -77.0692, places=4)
 
-    def test_bootstrap_copies_config_passwords_to_env(self):
-        env_path = Path(self.tmpdir.name) / "nexnoc.env"
-        os.environ["NEXNOC_ENV_FILE"] = str(env_path)
-        self.addCleanup(lambda: os.environ.pop("NEXNOC_ENV_FILE", None))
+    def test_bootstrap_copies_config_passwords_to_db(self):
         cfg = _config()
-        cfg["devices"][0]["api_username_env"] = "HSV_X20_1_USER"
-        cfg["devices"][0]["api_password_env"] = "HSV_X20_1_PASS"
         cfg["devices"][0]["api_username"] = "admin"
         cfg["devices"][0]["api_password"] = "secret"
         bootstrap(self.db, cfg)
-        text = env_path.read_text(encoding="utf-8")
-        self.assertIn("HSV_X20_1_USER=admin", text)
-        self.assertIn("HSV_X20_1_PASS=secret", text)
+        device = next(d for d in self.db.list_devices() if d.name == cfg["devices"][0]["name"])
+        self.assertEqual(device.api_username, "admin")
+        self.assertEqual(device.api_password, "secret")
 
     def test_bootstrap_pending_device_without_ip(self):
         cfg = _config()
@@ -218,8 +213,8 @@ class TestBootstrap(unittest.TestCase):
             "vendor": "haivision",
             "mgmt_host": "",
             "poll_enabled": False,
-            "api_username_env": "CHI_HAI_PENDING_USER",
-            "api_password_env": "CHI_HAI_PENDING_PASS",
+            "api_username": "admin",
+            "api_password": "secret",
         })
         bootstrap(self.db, cfg)
         pending = next(d for d in self.db.list_devices() if d.name == "CHI-HAI-PENDING")

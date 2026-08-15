@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -43,6 +45,20 @@ VALID_PORT_DIRECTIONS = {"", "input", "output", "unused"}
 VALID_GEO_SOURCES = {"", "geocode", "manual"}
 VALID_FLOW_STATUSES = VALID_SIGNAL_STATUSES
 VALID_SNMP_VERSIONS = {"1", "2c", "3"}
+DEVICE_SECRET_COLUMNS = (
+    "api_username", "api_password", "snmp_community",
+    "snmp_v3_user", "snmp_v3_auth_pass", "snmp_v3_priv_pass", "nms_api_key",
+)
+_SECRET_FROM_ENV = (
+    ("api_username", "api_username_env"),
+    ("api_password", "api_password_env"),
+    ("snmp_community", "snmp_community_env"),
+    ("snmp_v3_user", "snmp_v3_user_env"),
+    ("snmp_v3_auth_pass", "snmp_v3_auth_pass_env"),
+    ("snmp_v3_priv_pass", "snmp_v3_priv_pass_env"),
+    ("nms_api_key", "nms_api_key_env"),
+)
+_ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9]*_[A-Z0-9_]+$")
 
 
 def utcnow_iso() -> str:
@@ -72,23 +88,23 @@ class Device:
     api_port: int
     api_scheme: str
     api_verify_tls: bool
-    api_username_env: Optional[str]
-    api_password_env: Optional[str]
+    api_username: Optional[str]
+    api_password: Optional[str]
     snmp_host: Optional[str]
     snmp_port: int
-    snmp_community_env: Optional[str]
+    snmp_community: Optional[str]
     snmp_version: str
     snmp_enabled: bool
     snmp_trap_enabled: bool
-    snmp_v3_user_env: Optional[str]
+    snmp_v3_user: Optional[str]
     snmp_v3_sec_level: Optional[str]
     snmp_v3_auth_proto: Optional[str]
-    snmp_v3_auth_pass_env: Optional[str]
+    snmp_v3_auth_pass: Optional[str]
     snmp_v3_priv_proto: Optional[str]
-    snmp_v3_priv_pass_env: Optional[str]
+    snmp_v3_priv_pass: Optional[str]
     nms_host: Optional[str]
     nms_port: Optional[int]
-    nms_api_key_env: Optional[str]
+    nms_api_key: Optional[str]
     nms_device_ref: Optional[str]
     poll_enabled: bool
     status: str
@@ -119,23 +135,23 @@ class Device:
             api_port=row["api_port"],
             api_scheme=row["api_scheme"],
             api_verify_tls=bool(row["api_verify_tls"]),
-            api_username_env=row["api_username_env"],
-            api_password_env=row["api_password_env"],
+            api_username=col("api_username"),
+            api_password=col("api_password"),
             snmp_host=row["snmp_host"],
             snmp_port=row["snmp_port"],
-            snmp_community_env=row["snmp_community_env"],
+            snmp_community=col("snmp_community"),
             snmp_version=col("snmp_version") or "2c",
             snmp_enabled=bool(col("snmp_enabled", 0)),
             snmp_trap_enabled=bool(col("snmp_trap_enabled", 1)),
-            snmp_v3_user_env=col("snmp_v3_user_env"),
+            snmp_v3_user=col("snmp_v3_user"),
             snmp_v3_sec_level=col("snmp_v3_sec_level") or "authPriv",
             snmp_v3_auth_proto=col("snmp_v3_auth_proto") or "SHA",
-            snmp_v3_auth_pass_env=col("snmp_v3_auth_pass_env"),
+            snmp_v3_auth_pass=col("snmp_v3_auth_pass"),
             snmp_v3_priv_proto=col("snmp_v3_priv_proto") or "AES",
-            snmp_v3_priv_pass_env=col("snmp_v3_priv_pass_env"),
+            snmp_v3_priv_pass=col("snmp_v3_priv_pass"),
             nms_host=row["nms_host"],
             nms_port=row["nms_port"],
-            nms_api_key_env=row["nms_api_key_env"],
+            nms_api_key=col("nms_api_key"),
             nms_device_ref=row["nms_device_ref"],
             poll_enabled=bool(row["poll_enabled"]),
             status=row["status"],
@@ -167,6 +183,7 @@ class Database:
             try:
                 conn.executescript(schema_sql)
                 self._migrate_schema(conn)
+                self._migrate_device_secrets(conn)
             except sqlite3.Error as exc:
                 raise DatabaseError(f"Failed to apply schema from {self.schema_path}: {exc}") from exc
         from auth import ensure_seeded
@@ -202,6 +219,13 @@ class Database:
                 ("snmp_v3_auth_pass_env", "TEXT"),
                 ("snmp_v3_priv_proto", "TEXT DEFAULT 'AES'"),
                 ("snmp_v3_priv_pass_env", "TEXT"),
+                ("api_username", "TEXT"),
+                ("api_password", "TEXT"),
+                ("snmp_community", "TEXT"),
+                ("snmp_v3_user", "TEXT"),
+                ("snmp_v3_auth_pass", "TEXT"),
+                ("snmp_v3_priv_pass", "TEXT"),
+                ("nms_api_key", "TEXT"),
                 ("control_driver", "TEXT"),
                 ("last_polled_at", "TEXT"),
             ],
@@ -227,6 +251,50 @@ class Database:
             logger.warning(
                 "duplicate management IPs exist; unique index not applied"
             )
+
+    @staticmethod
+    def _migrate_device_secrets(conn: sqlite3.Connection) -> None:
+        """Copy leftover env-file / env-name values onto the device row."""
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(devices)")}
+        if "api_username" not in existing:
+            return
+        env_map = None
+        copied = 0
+        rows = conn.execute("SELECT * FROM devices").fetchall()
+        for row in rows:
+            keys = set(row.keys())
+            updates = []
+            params = []
+            for value_col, env_col in _SECRET_FROM_ENV:
+                if value_col not in keys:
+                    continue
+                if (row[value_col] or "").strip():
+                    continue
+                env_name = (row[env_col] if env_col in keys else None) or ""
+                env_name = env_name.strip()
+                if not env_name:
+                    continue
+                value = os.environ.get(env_name)
+                if not value:
+                    if env_map is None:
+                        from envfile import default_env_path, read_all
+                        env_map = read_all(default_env_path())
+                    value = env_map.get(env_name)
+                if not value and not _ENV_NAME_RE.match(env_name):
+                    value = env_name
+                if not value:
+                    continue
+                updates.append(f"{value_col} = ?")
+                params.append(value)
+                copied += 1
+            if updates:
+                params.append(row["id"])
+                conn.execute(
+                    f"UPDATE devices SET {', '.join(updates)} WHERE id = ?",
+                    params,
+                )
+        if copied:
+            logger.info("Migrated %d device secret value(s) from env names into the database", copied)
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -436,25 +504,25 @@ class Database:
         api_port: int = 443,
         api_scheme: str = "https",
         api_verify_tls: bool = False,
-        api_username_env: Optional[str] = None,
-        api_password_env: Optional[str] = None,
+        api_username: Optional[str] = None,
+        api_password: Optional[str] = None,
         snmp_host: Optional[str] = None,
         snmp_port: int = 161,
-        snmp_community_env: Optional[str] = None,
+        snmp_community: Optional[str] = None,
         nms_host: Optional[str] = None,
         nms_port: Optional[int] = None,
-        nms_api_key_env: Optional[str] = None,
+        nms_api_key: Optional[str] = None,
         nms_device_ref: Optional[str] = None,
         poll_enabled: bool = True,
         snmp_version: str = "2c",
         snmp_enabled: Optional[bool] = None,
         snmp_trap_enabled: bool = True,
-        snmp_v3_user_env: Optional[str] = None,
+        snmp_v3_user: Optional[str] = None,
         snmp_v3_sec_level: str = "authPriv",
         snmp_v3_auth_proto: str = "SHA",
-        snmp_v3_auth_pass_env: Optional[str] = None,
+        snmp_v3_auth_pass: Optional[str] = None,
         snmp_v3_priv_proto: str = "AES",
-        snmp_v3_priv_pass_env: Optional[str] = None,
+        snmp_v3_priv_pass: Optional[str] = None,
     ) -> int:
         if vendor not in VALID_VENDORS:
             raise ValueError(f"unknown vendor {vendor!r}, must be one of {sorted(VALID_VENDORS)}")
@@ -478,24 +546,24 @@ class Database:
                     INSERT INTO devices (
                         site_id, name, vendor, device_role, model, firmware_version, mgmt_host,
                         access_mode, driver_override, control_driver,
-                        api_port, api_scheme, api_verify_tls, api_username_env, api_password_env,
-                        snmp_host, snmp_port, snmp_community_env, snmp_version,
+                        api_port, api_scheme, api_verify_tls, api_username, api_password,
+                        snmp_host, snmp_port, snmp_community, snmp_version,
                         snmp_enabled, snmp_trap_enabled,
-                        snmp_v3_user_env, snmp_v3_sec_level, snmp_v3_auth_proto, snmp_v3_auth_pass_env,
-                        snmp_v3_priv_proto, snmp_v3_priv_pass_env,
-                        nms_host, nms_port, nms_api_key_env, nms_device_ref,
+                        snmp_v3_user, snmp_v3_sec_level, snmp_v3_auth_proto, snmp_v3_auth_pass,
+                        snmp_v3_priv_proto, snmp_v3_priv_pass,
+                        nms_host, nms_port, nms_api_key, nms_device_ref,
                         poll_enabled
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         site_id, name, vendor, device_role, model, firmware_version, host,
                         access_mode, driver_override, control_driver,
-                        api_port, api_scheme, int(api_verify_tls), api_username_env, api_password_env,
-                        snmp_host if snmp_host is not None else host, snmp_port, snmp_community_env,
+                        api_port, api_scheme, int(api_verify_tls), api_username, api_password,
+                        snmp_host if snmp_host is not None else host, snmp_port, snmp_community,
                         snmp_version, int(snmp_enabled), int(snmp_trap_enabled),
-                        snmp_v3_user_env, snmp_v3_sec_level, snmp_v3_auth_proto, snmp_v3_auth_pass_env,
-                        snmp_v3_priv_proto, snmp_v3_priv_pass_env,
-                        nms_host, nms_port, nms_api_key_env, nms_device_ref,
+                        snmp_v3_user, snmp_v3_sec_level, snmp_v3_auth_proto, snmp_v3_auth_pass,
+                        snmp_v3_priv_proto, snmp_v3_priv_pass,
+                        nms_host, nms_port, nms_api_key, nms_device_ref,
                         int(poll_enabled),
                     ),
                 )
@@ -514,8 +582,8 @@ class Database:
         """Move ports, flows, and history from source onto target, then delete source.
 
         Same-named ports stay on the target; flows that pointed at the source
-        port are remapped. Blank target fields (mgmt_host, model, credential
-        env names) are filled from the source.
+        port are remapped. Blank target fields (mgmt_host, model, credentials)
+        are filled from the source.
         """
         if source_id == target_id:
             raise ValueError("cannot merge a device into itself")
@@ -535,9 +603,9 @@ class Database:
                 params.append(src["mgmt_host"])
             for col in (
                 "model", "firmware_version", "snmp_host", "driver_override",
-                "api_username_env", "api_password_env", "snmp_community_env",
-                "snmp_v3_user_env", "snmp_v3_auth_pass_env", "snmp_v3_priv_pass_env",
-                "nms_host", "nms_api_key_env", "nms_device_ref",
+                "api_username", "api_password", "snmp_community",
+                "snmp_v3_user", "snmp_v3_auth_pass", "snmp_v3_priv_pass",
+                "nms_host", "nms_api_key", "nms_device_ref",
             ):
                 if not (tgt[col] or "").strip() and (src[col] or "").strip():
                     fills.append(f"{col} = ?")
@@ -618,12 +686,12 @@ class Database:
             "site_id", "name", "vendor", "device_role", "model", "firmware_version",
             "mgmt_host", "access_mode", "driver_override", "control_driver",
             "api_port", "api_scheme", "api_verify_tls",
-            "api_username_env", "api_password_env",
-            "snmp_host", "snmp_port", "snmp_community_env", "snmp_version",
+            "api_username", "api_password",
+            "snmp_host", "snmp_port", "snmp_community", "snmp_version",
             "snmp_enabled", "snmp_trap_enabled",
-            "snmp_v3_user_env", "snmp_v3_sec_level", "snmp_v3_auth_proto",
-            "snmp_v3_auth_pass_env", "snmp_v3_priv_proto", "snmp_v3_priv_pass_env",
-            "nms_host", "nms_port", "nms_api_key_env", "nms_device_ref",
+            "snmp_v3_user", "snmp_v3_sec_level", "snmp_v3_auth_proto",
+            "snmp_v3_auth_pass", "snmp_v3_priv_proto", "snmp_v3_priv_pass",
+            "nms_host", "nms_port", "nms_api_key", "nms_device_ref",
             "poll_enabled",
         }
         bools = {"api_verify_tls", "poll_enabled", "snmp_enabled", "snmp_trap_enabled"}

@@ -75,8 +75,7 @@ class TestDashboardState(unittest.TestCase):
         self.assertEqual(hsv["status"], "healthy")
         self.assertEqual(state["devices"][0]["site_name"], "Huntsville HQ")
         self.assertNotIn("api_password", state["devices"][0])
-        self.assertNotIn("api_username", state["devices"][0])
-        self.assertIn("api_password_env", state["devices"][0])
+        self.assertEqual(state["devices"][0].get("api_username") or "", "")
         self.assertFalse(state["devices"][0]["credentials_ready"])
 
     def test_worst_signal_wins_on_trunk(self):
@@ -496,20 +495,19 @@ class TestHttpServer(unittest.TestCase):
             "vendor": "haivision",
             "site_id": site["site"]["id"],
             "mgmt_host": "",
-            "api_username_env": "ATL_HAI_PENDING_USER",
-            "api_password_env": "ATL_HAI_PENDING_PASS",
             "api_username": "admin",
             "api_password": "secret-from-portal",
             "poll_enabled": False,
         })
         self.assertEqual(status, 201)
         self.assertNotIn("api_password", device["device"])
+        self.assertEqual(device["device"]["api_username"], "admin")
         self.assertTrue(device["device"]["api_username_set"])
         self.assertTrue(device["device"]["api_password_set"])
-        env_text = (Path(self.tmpdir.name) / "nexnoc.env").read_text(encoding="utf-8")
-        self.assertIn("ATL_HAI_PENDING_USER=admin", env_text)
-        self.assertIn("ATL_HAI_PENDING_PASS=secret-from-portal", env_text)
         device_id = device["device"]["id"]
+        row = self.db.get_device(device_id)
+        self.assertEqual(row.api_username, "admin")
+        self.assertEqual(row.api_password, "secret-from-portal")
         status, _patched = self._send("PATCH", f"/api/devices/{device_id}", {
             "mgmt_host": "10.9.9.9",
             "poll_enabled": True,
@@ -910,7 +908,8 @@ class TestHttpServer(unittest.TestCase):
         self.assertEqual(status, 200)
         payload = json.loads(body)
         device = payload["devices"][0]
-        self.assertNotIn("api_password_env", device)
+        self.assertNotIn("api_username", device)
+        self.assertNotIn("api_password", device)
         self.assertNotIn("credentials_ready", device)
         self.assertIn("mgmt_host", device)
         authed = json.loads(self._get("/api/state")[2])

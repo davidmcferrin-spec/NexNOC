@@ -61,7 +61,7 @@ class TestDatabase(unittest.TestCase):
         site_id = self.db.add_site("Chicago")
         device_id = self.db.add_device(
             site_id=site_id, name="CHI-X20-1", vendor="appear", mgmt_host="10.0.1.10",
-            model="X20", api_username_env="CHI_USER", api_password_env="CHI_PASS",
+            model="X20", api_username="admin", api_password="secret",
         )
         device = self.db.get_device(device_id)
         self.assertIsNotNone(device)
@@ -70,6 +70,28 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(device.access_mode, "direct_api")
         self.assertEqual(device.status, "unknown")
         self.assertFalse(device.api_verify_tls)
+        self.assertEqual(device.api_username, "admin")
+        self.assertEqual(device.api_password, "secret")
+
+    def test_migrate_literal_env_names_into_values(self):
+        site_id = self.db.add_site("Chicago")
+        device_id = self.db.add_device(
+            site_id=site_id, name="CHI-HAI-1", vendor="haivision", mgmt_host="10.0.1.20",
+        )
+        with self.db.connect() as conn:
+            existing = {row[1] for row in conn.execute("PRAGMA table_info(devices)")}
+            if "api_username_env" not in existing:
+                conn.execute("ALTER TABLE devices ADD COLUMN api_username_env TEXT")
+                conn.execute("ALTER TABLE devices ADD COLUMN api_password_env TEXT")
+            conn.execute(
+                "UPDATE devices SET api_username = NULL, api_password = NULL, "
+                "api_username_env = 'admin', api_password_env = 'manager' WHERE id = ?",
+                (device_id,),
+            )
+            self.db._migrate_device_secrets(conn)
+        device = self.db.get_device(device_id)
+        self.assertEqual(device.api_username, "admin")
+        self.assertEqual(device.api_password, "manager")
 
     def test_add_haivision_device(self):
         site_id = self.db.add_site("Chicago")
@@ -85,7 +107,7 @@ class TestDatabase(unittest.TestCase):
         site_id = self.db.add_site("Chicago")
         device_id = self.db.add_device(
             site_id=site_id, name="CHI-NIMBRA-1", vendor="net_insight", mgmt_host="10.0.1.30",
-            access_mode="direct_snmp", snmp_community_env="CHI_NIMBRA_SNMP",
+            access_mode="direct_snmp", snmp_community="public",
         )
         device = self.db.get_device(device_id)
         self.assertEqual(device.vendor, "net_insight")
@@ -98,7 +120,7 @@ class TestDatabase(unittest.TestCase):
         device_id = self.db.add_device(
             site_id=site_id, name="CHI-NIMBRA-VISION-1", vendor="net_insight", mgmt_host="10.0.1.31",
             access_mode="via_nms", nms_host="10.0.1.5", nms_port=8443,
-            nms_api_key_env="NIMBRA_VISION_KEY", nms_device_ref="node-42",
+            nms_api_key="vision-key", nms_device_ref="node-42",
         )
         device = self.db.get_device(device_id)
         self.assertEqual(device.access_mode, "via_nms")
@@ -332,7 +354,7 @@ class TestDatabase(unittest.TestCase):
         device_id = self.db.add_device(
             site_id=site_id, name="ATL-HAI-HAI1161", vendor="haivision",
             mgmt_host="", poll_enabled=False,
-            api_username_env="ATL_HAI_HAI1161_USER",
+            api_username="admin",
         )
         device = self.db.get_device(device_id)
         self.assertEqual(device.mgmt_host, "")
