@@ -31,6 +31,25 @@ def _opt_float(value):
     return float(value)
 
 
+def _as_bool(value) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
+def _bulk_ids(body: dict) -> list[int]:
+    raw = body.get("ids")
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("ids must be a non-empty list")
+    ids = []
+    for item in raw:
+        try:
+            ids.append(int(item))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"invalid id {item!r}") from exc
+    return ids
+
+
 def device_secret_flags(device, env_path: Path) -> dict:
     return {
         "api_username_env": device.api_username_env,
@@ -184,7 +203,7 @@ def _device_fields(body: dict) -> dict:
         if key in {"site_id", "api_port", "snmp_port", "nms_port"}:
             value = _opt_int(value) if key != "site_id" else int(value)
         if key in {"api_verify_tls", "poll_enabled", "snmp_enabled", "snmp_trap_enabled"}:
-            value = bool(value)
+            value = _as_bool(value)
         if key in {
             "api_username_env", "api_password_env", "snmp_community_env",
             "nms_api_key_env", "snmp_v3_user_env", "snmp_v3_auth_pass_env",
@@ -349,11 +368,67 @@ def _handle_flows(db: Database, method: str, item_id: Optional[int], body: dict)
     raise LookupError("not found")
 
 
+def _handle_bulk(db: Database, env_path: Path, collection: str, body: dict) -> tuple[int, dict]:
+    ids = _bulk_ids(body)
+    if body.get("merge_into") is not None:
+        if collection != "devices":
+            raise ValueError("merge is only for devices")
+        keep = int(body["merge_into"])
+        sources = [item_id for item_id in ids if item_id != keep]
+        if not sources:
+            raise ValueError("select at least one other device to merge into the kept device")
+        if db.get_device(keep) is None:
+            raise LookupError("keep device not found")
+        merged, errors = [], []
+        for item_id in sources:
+            try:
+                db.merge_devices(item_id, keep)
+                merged.append(item_id)
+            except (LookupError, ValueError, sqlite3.IntegrityError) as exc:
+                errors.append({"id": item_id, "error": str(exc)})
+        return 200, {"kept": keep, "merged": merged, "errors": errors}
+    delete = _as_bool(body.get("delete"))
+    patch = body.get("patch") if isinstance(body.get("patch"), dict) else {}
+    if not delete and not patch:
+        raise ValueError("bulk request needs patch fields, delete=true, or merge_into")
+    updated, deleted, errors = [], [], []
+    for item_id in ids:
+        try:
+            if delete:
+                if collection == "devices":
+                    _handle_devices(db, env_path, "DELETE", item_id, {})
+                elif collection == "flows":
+                    _handle_flows(db, "DELETE", item_id, {})
+                else:
+                    raise ValueError(f"bulk delete not supported for {collection}")
+                deleted.append(item_id)
+            else:
+                if collection == "devices":
+                    _handle_devices(db, env_path, "PATCH", item_id, patch)
+                elif collection == "flows":
+                    _handle_flows(db, "PATCH", item_id, patch)
+                else:
+                    raise ValueError(f"bulk edit not supported for {collection}")
+                updated.append(item_id)
+        except (LookupError, ValueError, sqlite3.IntegrityError) as exc:
+            errors.append({"id": item_id, "error": str(exc)})
+    return 200, {"updated": updated, "deleted": deleted, "errors": errors}
+
+
 def handle(db: Database, env_path: Path, method: str, path: str, body: dict) -> tuple[int, dict]:
     parts = [p for p in path.strip("/").split("/") if p]
     if len(parts) < 2 or parts[0] != "api":
         raise LookupError("not found")
     collection = parts[1]
+    if len(parts) > 2 and parts[2] == "bulk":
+        if method != "POST":
+            raise LookupError("not found")
+        if collection not in {"devices", "flows"}:
+            raise LookupError("not found")
+        try:
+            return _handle_bulk(db, env_path, collection, body)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(f"cannot apply change: {exc}") from exc
     item_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
     if len(parts) > 2 and not parts[2].isdigit():
         raise LookupError("not found")

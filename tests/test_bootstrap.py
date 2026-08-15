@@ -179,6 +179,20 @@ class TestBootstrap(unittest.TestCase):
         site = self.db.get_site(device.site_id)
         self.assertEqual(site["name"], "WDCW TV Station")
 
+    def test_bootstrap_updates_site_coords(self):
+        self.db.add_site("WDCW TV Station", city="Washington DC", lat=38.92, lng=-77.01)
+        bootstrap(self.db, {
+            "cities": [{"name": "Washington DC", "lat": 38.9072, "lng": -77.0369}],
+            "sites": [
+                {"name": "WDCW TV Station", "city": "Washington DC",
+                 "lat": 38.9178, "lng": -77.0692},
+            ],
+            "devices": [],
+        })
+        site = self.db.get_site_by_name("WDCW TV Station")
+        self.assertAlmostEqual(site["lat"], 38.9178, places=4)
+        self.assertAlmostEqual(site["lng"], -77.0692, places=4)
+
     def test_bootstrap_copies_config_passwords_to_env(self):
         env_path = Path(self.tmpdir.name) / "nexnoc.env"
         os.environ["NEXNOC_ENV_FILE"] = str(env_path)

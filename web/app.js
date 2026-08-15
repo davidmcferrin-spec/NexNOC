@@ -18,6 +18,7 @@
     min_zoom: 3,
     max_zoom: 18,
   };
+  const SITE_ZOOM = 10;
 
   let state = null;
   let selected = { type: null, id: null };
@@ -31,6 +32,12 @@
   let newSiteCityId = null;
   let selectedDeviceId = null;
   let selectedFlowId = null;
+  let selectedInvIds = new Set();
+  let selectedLinkIds = new Set();
+  let lastInvCheck = null;
+  let lastLinkCheck = null;
+  let bulkInvOpen = false;
+  let bulkLinkOpen = false;
   let creatingDevice = false;
   let creatingFlow = false;
   let mapEdit = null;
@@ -123,6 +130,99 @@
     return (state.sites || []).filter((s) => s.lat != null && s.lng != null);
   }
 
+  function mapZoom() {
+    return leafletMap ? leafletMap.getZoom() : 0;
+  }
+
+  function showingSitePins() {
+    return mapZoom() >= SITE_ZOOM;
+  }
+
+  function addLabeledPin(lat, lng, name, sub, status, kind, id, zIndex) {
+    const sel = selected.type === kind && String(selected.id) === String(id) ? " sel" : "";
+    const marker = L.marker([lat, lng], {
+      zIndexOffset: zIndex || 400,
+      icon: L.divIcon({
+        className: `city-marker ${status || "unknown"}${sel}`,
+        html: `<div class="pin-dot"></div><div class="city-pill"><span class="pill-bar"></span><div class="pill-text"><div class="site-label">${escapeHtml(name)}</div><div class="site-sub">${escapeHtml(sub)}</div></div></div>`,
+        iconSize: [240, 48],
+        iconAnchor: [6, 24],
+      }),
+    });
+    marker.on("click", (ev) => stopSelect(ev, kind, id));
+    overlay.addLayer(marker);
+  }
+
+  function sitePinLatLng(site, city, index, count) {
+    if (site.lat == null || site.lng == null) return null;
+    if (showingSitePins() || !city || city.lat == null) return [site.lat, site.lng];
+    const sameSpot = Math.hypot(site.lat - city.lat, site.lng - city.lng) < 0.05;
+    if (!sameSpot) return [site.lat, site.lng];
+    const n = Math.max(count, 1);
+    return [
+      city.lat + Math.cos((index / n) * Math.PI * 2 - Math.PI / 2) * 0.18,
+      city.lng + Math.sin((index / n) * Math.PI * 2 - Math.PI / 2) * 0.18,
+    ];
+  }
+
+  function drawHopLine(lat1, lng1, lat2, lng2, flowCount, status, id, index) {
+    const bulge = (Math.hypot(lat2 - lat1, lng2 - lng1) < 0.08 ? 0.04 : 1.15)
+      + (index % 3) * 0.25;
+    const pts = hopLatLngs(lat1, lng1, lat2, lng2, bulge);
+    const width = 3 + Math.min(flowCount || 1, 10) * 1.1;
+    const dim = selected.type === "hop" && selected.id !== id;
+    const sel = selected.type === "hop" && selected.id === id;
+    const color = STATUS_COLOR[status] || STATUS_COLOR.unknown;
+    const hit = L.polyline(pts, { color: "#000", weight: 20, opacity: 0, interactive: true });
+    const line = L.polyline(pts, {
+      color,
+      weight: width,
+      opacity: dim ? 0.22 : 0.95,
+      lineCap: "round",
+      interactive: true,
+    });
+    if (sel) line.setStyle({ weight: width + 1.6 });
+    if (id) {
+      hit.on("click", (ev) => stopSelect(ev, "hop", id));
+      line.on("click", (ev) => stopSelect(ev, "hop", id));
+    }
+    overlay.addLayer(hit);
+    overlay.addLayer(line);
+  }
+
+  function intraCityHops() {
+    const sites = new Map((state.sites || []).map((s) => [s.id, s]));
+    const buckets = new Map();
+    (state.flows || []).forEach((f) => {
+      const a = f.source_site_id;
+      const b = f.dest_site_id;
+      if (!a || !b || a === b) return;
+      const sa = sites.get(a);
+      const sb = sites.get(b);
+      if (!sa || !sb || sa.lat == null || sb.lat == null) return;
+      if ((sa.city_id || sa.city_name) !== (sb.city_id || sb.city_name)) return;
+      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      const bucket = buckets.get(key) || {
+        id: `site:${key}`,
+        source_lat: sa.lat,
+        source_lng: sa.lng,
+        dest_lat: sb.lat,
+        dest_lng: sb.lng,
+        flow_count: 0,
+        statuses: [],
+      };
+      bucket.flow_count += 1;
+      bucket.statuses.push(f.effective_status || f.status);
+      buckets.set(key, bucket);
+    });
+    return [...buckets.values()].map((h) => {
+      const rank = { down: 3, unreachable: 3, degraded: 2, up: 1, healthy: 1, unknown: 0 };
+      h.status = h.statuses.reduce((worst, s) =>
+        (rank[s] || 0) > (rank[worst] || 0) ? s : worst, "unknown");
+      return h;
+    });
+  }
+
   function mapSettings() {
     const cfg = (state && state.map) || {};
     return {
@@ -181,6 +281,7 @@
         zoom: 4,
       });
       leafletMap.on("click", () => select(null, null));
+      leafletMap.on("zoomend", () => renderMap({ overlayOnly: true }));
       overlay = L.layerGroup().addTo(leafletMap);
     } else {
       leafletMap.setMinZoom(cfg.min_zoom);
@@ -207,8 +308,10 @@
     didFit = true;
   }
 
-  function renderMap() {
+  function renderMap(opts) {
+    const overlayOnly = Boolean(opts && opts.overlayOnly);
     if (!ensureMap()) {
+      if (overlayOnly) return;
       if (mapEdit && !KIOSK) {
         if (!editDirty) fillMapEditor();
       } else {
@@ -223,75 +326,48 @@
     );
 
     hops.forEach((h, i) => {
-      const bulge = 1.15 + (i % 3) * 0.25;
-      const pts = hopLatLngs(h.source_lat, h.source_lng, h.dest_lat, h.dest_lng, bulge);
-      const width = 3 + Math.min(h.flow_count, 10) * 1.1;
-      const dim = selected.type === "hop" && selected.id !== h.id;
-      const sel = selected.type === "hop" && selected.id === h.id;
-      const color = STATUS_COLOR[h.status] || STATUS_COLOR.unknown;
-      const hit = L.polyline(pts, { color: "#000", weight: 20, opacity: 0, interactive: true });
-      const line = L.polyline(pts, {
-        color,
-        weight: width,
-        opacity: dim ? 0.22 : 0.95,
-        lineCap: "round",
-        interactive: true,
-      });
-      if (sel) line.setStyle({ weight: width + 1.6 });
-      hit.on("click", (ev) => stopSelect(ev, "hop", h.id));
-      line.on("click", (ev) => stopSelect(ev, "hop", h.id));
-      overlay.addLayer(hit);
-      overlay.addLayer(line);
+      drawHopLine(h.source_lat, h.source_lng, h.dest_lat, h.dest_lng,
+        h.flow_count, h.status, h.id, i);
     });
-
-    mapNodes().forEach((s) => {
-      const kind = s.site_ids ? "city" : "site";
-      const sel = selected.type === kind && String(selected.id) === String(s.id) ? " sel" : "";
-      const siteBit = s.site_count != null
-        ? `${s.site_count} site${s.site_count === 1 ? "" : "s"} · `
-        : "";
-      const sub = `${siteBit}${s.device_count} device${s.device_count === 1 ? "" : "s"}`;
-      const marker = L.marker([s.lat, s.lng], {
-        zIndexOffset: 400,
-        icon: L.divIcon({
-          className: `city-marker ${s.status}${sel}`,
-          html: `<div class="pin-dot"></div><div class="city-pill"><span class="pill-bar"></span><div class="pill-text"><div class="site-label">${escapeHtml(s.name)}</div><div class="site-sub">${escapeHtml(sub)}</div></div></div>`,
-          iconSize: [240, 48],
-          iconAnchor: [6, 24],
-        }),
+    if (showingSitePins()) {
+      intraCityHops().forEach((h, i) => {
+        drawHopLine(h.source_lat, h.source_lng, h.dest_lat, h.dest_lng,
+          h.flow_count, h.status, null, i);
       });
-      marker.on("click", (ev) => stopSelect(ev, kind, s.id));
-      overlay.addLayer(marker);
-    });
+    }
 
-    if (selected.type === "city") {
-      const city = (state.cities || []).find((c) => String(c.id) === String(selected.id));
+    if (showingSitePins()) {
+      (state.sites || []).filter((s) => s.lat != null && s.lng != null).forEach((s) => {
+        const sub = `${s.device_count} device${s.device_count === 1 ? "" : "s"}`;
+        addLabeledPin(s.lat, s.lng, s.name, sub, s.status, "site", s.id, 500);
+      });
+    } else {
+      mapNodes().forEach((s) => {
+        const kind = s.site_ids ? "city" : "site";
+        const siteBit = s.site_count != null
+          ? `${s.site_count} site${s.site_count === 1 ? "" : "s"} · `
+          : "";
+        const sub = `${siteBit}${s.device_count} device${s.device_count === 1 ? "" : "s"}`;
+        addLabeledPin(s.lat, s.lng, s.name, sub, s.status, kind, s.id, 400);
+      });
+    }
+
+    if (!showingSitePins() && (selected.type === "city" || selected.type === "site")) {
+      const city = selected.type === "city"
+        ? (state.cities || []).find((c) => String(c.id) === String(selected.id))
+        : (state.cities || []).find((c) => (c.site_ids || []).includes(selected.id));
       const citySites = city
         ? state.sites.filter((s) => (city.site_ids || []).includes(s.id) && s.lat != null)
         : [];
       citySites.forEach((s, i) => {
-        const sameSpot = city && Math.hypot(s.lat - city.lat, s.lng - city.lng) < 0.02;
-        const n = citySites.length;
-        const lat = sameSpot
-          ? city.lat + Math.cos((i / n) * Math.PI * 2 - Math.PI / 2) * 0.18
-          : s.lat;
-        const lng = sameSpot
-          ? city.lng + Math.sin((i / n) * Math.PI * 2 - Math.PI / 2) * 0.18
-          : s.lng;
-        const marker = L.marker([lat, lng], {
-          zIndexOffset: 500,
-          icon: L.divIcon({
-            className: `site-dot ${s.status}`,
-            html: `<div class="pin-dot"></div>`,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8],
-          }),
-        });
-        marker.on("click", (ev) => stopSelect(ev, "site", s.id));
-        overlay.addLayer(marker);
+        const pos = sitePinLatLng(s, city, i, citySites.length);
+        if (!pos) return;
+        const sub = `${s.device_count} device${s.device_count === 1 ? "" : "s"}`;
+        addLabeledPin(pos[0], pos[1], s.name, sub, s.status, "site", s.id, 500);
       });
     }
 
+    if (overlayOnly) return;
     if (mapEdit && !KIOSK) {
       if (!editDirty) fillMapEditor();
       else $("view-map")?.querySelector(".map-wrap")?.classList.add("with-form");
@@ -354,7 +430,7 @@
   function renderMapPanel() {
     const panel = $("map-panel");
     if (!selected.type) {
-      let html = `<p class="muted">Click a city or a trunk. One pipe per city pair — thickness is path count, color is worst status. Click a trunk to see every path on it.</p>`;
+      let html = `<p class="muted">Click a city or a trunk. Zoom in to see each building (WDCW, Hamptons, …). One pipe per city pair — thickness is path count, color is worst status.</p>`;
       if (!KIOSK) {
         html += `<p class="form-actions"><button type="button" class="btn" id="map-add-city">Add city</button></p>`;
       }
@@ -389,14 +465,14 @@
         ${KIOSK ? "" : `<p class="form-actions"><button type="button" class="btn" id="city-edit">Edit city</button>
           <button type="button" class="btn" id="city-add-site">Add site</button></p>`}
         <h3>Sites</h3>
-        <p class="muted">Each site is a building in this city.</p>
+        <p class="muted">Each site is a building in this city. Zoom in to see them on the map.</p>
         ${sites.length ? sites.map((site) => {
           const devices = state.devices.filter((d) => d.site_id === site.id);
           const actions = KIOSK ? "" : `<div class="site-actions">
             <button type="button" class="btn" data-edit-site="${site.id}">Edit</button>
             <button type="button" class="btn danger" data-del-site="${site.id}">Delete</button>
           </div>`;
-          return `<div class="site-head"><h3>${escapeHtml(site.name)}</h3>${actions}</div>
+          return `<div class="site-head"><h3><button type="button" class="linkish" data-select-site="${site.id}">${escapeHtml(site.name)}</button></h3>${actions}</div>
             ${devices.length ? `<ul class="row-list">${devices.map((d) => {
               const lines = deviceFlowLines(d.id);
               const extra = [...lines.inputHtml, ...lines.outputHtml].join("<br>");
@@ -421,16 +497,36 @@
       panel.querySelectorAll("[data-del-site]").forEach((btn) => {
         btn.addEventListener("click", () => deleteCitySite(Number(btn.dataset.delSite)));
       });
+      panel.querySelectorAll("[data-select-site]").forEach((btn) => {
+        btn.addEventListener("click", () => select("site", Number(btn.dataset.selectSite)));
+      });
       return;
     }
     if (selected.type === "site") {
       const site = state.sites.find((s) => s.id === selected.id);
       if (!site) return;
-      if (site.city_key) {
-        select("city", site.city_key);
-        return;
-      }
-      select("city", `s:${site.id}`);
+      const devices = state.devices.filter((d) => d.site_id === site.id);
+      const city = (state.cities || []).find((c) => (c.site_ids || []).includes(site.id));
+      const cityDb = city ? cityDbId(city) : site.city_id;
+      panel.innerHTML = `
+        <h2>${escapeHtml(site.name)}</h2>
+        <p class="muted">${escapeHtml(site.city_name || site.city || "")} · ${site.device_count} device${site.device_count === 1 ? "" : "s"}</p>
+        <p>${badge(site.status)}</p>
+        <p class="form-actions">
+          ${city ? `<button type="button" class="btn" id="site-back-city">Back to ${escapeHtml(city.name)}</button>` : ""}
+          ${KIOSK ? "" : `<button type="button" class="btn" id="site-edit">Edit site</button>`}
+        </p>
+        <h3>Devices</h3>
+        ${devices.length ? `<ul class="row-list">${devices.map((d) => {
+          const lines = deviceFlowLines(d.id);
+          const extra = [...lines.inputHtml, ...lines.outputHtml].join("<br>");
+          return `<li><span>${escapeHtml(d.name)}<br><span class="muted">${escapeHtml(d.mgmt_host || "no management IP")} · ${escapeHtml(d.vendor)} ${escapeHtml(d.model || "")}${extra ? `<br>${extra}` : ""}</span></span>${badge(d.status)}</li>`;
+        }).join("")}</ul>` : `<p class="muted">No devices at this site.</p>`}
+      `;
+      const back = $("site-back-city");
+      if (back && city) back.addEventListener("click", () => select("city", city.id));
+      const edit = $("site-edit");
+      if (edit) edit.addEventListener("click", () => openSiteEditor(site.id, cityDb));
       return;
     }
     const hop = (state.hops || []).find((h) => h.id === selected.id);
@@ -497,17 +593,17 @@
     fillSelect($("link-dest-device"), uniqueSorted(flows, "dest_device_name"), "All dest devices", "name", "name");
   }
 
-  function renderLinks() {
-    const q = $("link-search").value.trim().toLowerCase();
-    const status = $("link-status").value;
-    const srcCity = $("link-src-city") ? $("link-src-city").value : "";
-    const destCity = $("link-dest-city") ? $("link-dest-city").value : "";
-    const srcSite = $("link-src-site").value;
-    const destSite = $("link-dest-site").value;
-    const srcPort = $("link-src-port").value;
-    const destDevice = $("link-dest-device").value;
-    const vendor = $("link-vendor").value;
-    const rows = (state.flows || []).filter((f) => {
+  function filteredFlows() {
+    const q = ($("link-search")?.value || "").trim().toLowerCase();
+    const status = $("link-status")?.value || "";
+    const srcCity = $("link-src-city")?.value || "";
+    const destCity = $("link-dest-city")?.value || "";
+    const srcSite = $("link-src-site")?.value || "";
+    const destSite = $("link-dest-site")?.value || "";
+    const srcPort = $("link-src-port")?.value || "";
+    const destDevice = $("link-dest-device")?.value || "";
+    const vendor = $("link-vendor")?.value || "";
+    return (state.flows || []).filter((f) => {
       if (status && f.effective_status !== status) return false;
       if (srcCity && f.source_city_name !== srcCity) return false;
       if (destCity && f.dest_city_name !== destCity) return false;
@@ -526,10 +622,68 @@
       }
       return true;
     });
+  }
+
+  function filteredDevices() {
+    const q = ($("inv-search")?.value || "").trim().toLowerCase();
+    const site = $("inv-site")?.value || "";
+    const vendor = $("inv-vendor")?.value || "";
+    return (state.devices || []).filter((d) => {
+      if (site && String(d.site_id) !== site) return false;
+      if (vendor && d.vendor !== vendor) return false;
+      if (!q) return true;
+      return `${d.name} ${d.site_name} ${d.vendor} ${d.mgmt_host || ""} ${d.model || ""}`.toLowerCase().includes(q);
+    });
+  }
+
+  function updateBulkButtons(kind) {
+    const ids = kind === "links" ? selectedLinkIds : selectedInvIds;
+    const n = ids.size;
+    const prefix = kind === "links" ? "link" : "inv";
+    const bulk = $(`${prefix}-bulk`);
+    const del = $(`${prefix}-bulk-delete`);
+    const count = $(`${prefix}-sel-count`);
+    if (bulk) bulk.disabled = n === 0;
+    if (del) del.disabled = n === 0;
+    if (count) count.textContent = n ? `${n} selected` : "";
+    const all = $(`${prefix}-check-all`);
+    const visible = kind === "links" ? filteredFlows() : filteredDevices();
+    if (all) {
+      all.checked = visible.length > 0 && visible.every((row) => ids.has(row.id));
+      all.indeterminate = n > 0 && !all.checked;
+    }
+  }
+
+  function toggleRange(kind, id, shiftKey) {
+    const ids = kind === "links" ? selectedLinkIds : selectedInvIds;
+    const visible = (kind === "links" ? filteredFlows() : filteredDevices()).map((r) => r.id);
+    const last = kind === "links" ? lastLinkCheck : lastInvCheck;
+    if (shiftKey && last != null && visible.includes(last)) {
+      const a = visible.indexOf(last);
+      const b = visible.indexOf(id);
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      const shouldCheck = !ids.has(id);
+      for (let i = lo; i <= hi; i += 1) {
+        if (shouldCheck) ids.add(visible[i]);
+        else ids.delete(visible[i]);
+      }
+    } else if (ids.has(id)) {
+      ids.delete(id);
+    } else {
+      ids.add(id);
+    }
+    if (kind === "links") lastLinkCheck = id;
+    else lastInvCheck = id;
+  }
+
+  function renderLinks() {
+    const rows = filteredFlows();
     $("links-body").innerHTML = rows.map((f) => {
-      const sel = Number(selectedFlowId) === Number(f.id) && !creatingFlow ? " sel" : "";
+      const sel = Number(selectedFlowId) === Number(f.id) && !creatingFlow && !bulkLinkOpen ? " sel" : "";
+      const checked = selectedLinkIds.has(f.id);
       return `
-      <tr class="${sel}" data-id="${f.id}">
+      <tr class="${sel}${checked ? " checked" : ""}" data-id="${f.id}">
+        <td class="check"><input type="checkbox" ${checked ? "checked" : ""}></td>
         <td>${badge(f.effective_status)}</td>
         <td>${escapeHtml(f.signal_label || "—")}</td>
         <td>${escapeHtml(f.source_port_name || "—")}</td>
@@ -545,26 +699,40 @@
     }).join("");
     $("links-empty").hidden = rows.length > 0;
     $("links-body").querySelectorAll("tr").forEach((tr) => {
+      const id = Number(tr.dataset.id);
+      const box = tr.querySelector("input[type=checkbox]");
+      box.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        toggleRange("links", id, ev.shiftKey);
+        renderLinks();
+      });
       tr.addEventListener("click", () => {
         if (!confirmLeaveForm()) return;
         creatingFlow = false;
-        selectedFlowId = Number(tr.dataset.id);
+        bulkLinkOpen = false;
+        selectedFlowId = id;
         editDirty = false;
         showFlowEditor(selectedFlowId);
+        renderLinks();
       });
     });
+    updateBulkButtons("links");
+  }
+
+  function fillInvFilters() {
+    const el = $("inv-site");
+    if (!el || !state) return;
+    fillSelect(el, state.sites || [], "All sites", "id", "name");
   }
 
   function renderInventory() {
-    const q = ($("inv-search")?.value || "").trim().toLowerCase();
-    const rows = (state.devices || []).filter((d) => {
-      if (!q) return true;
-      return `${d.name} ${d.site_name} ${d.vendor} ${d.mgmt_host || ""} ${d.model || ""}`.toLowerCase().includes(q);
-    });
+    const rows = filteredDevices();
     $("inv-body").innerHTML = rows.map((d) => {
-      const sel = Number(selectedDeviceId) === Number(d.id) && !creatingDevice ? " sel" : "";
+      const sel = Number(selectedDeviceId) === Number(d.id) && !creatingDevice && !bulkInvOpen ? " sel" : "";
+      const checked = selectedInvIds.has(d.id);
       return `
-      <tr class="${sel}" data-device="${d.id}">
+      <tr class="${sel}${checked ? " checked" : ""}" data-device="${d.id}">
+        <td class="check"><input type="checkbox" ${checked ? "checked" : ""}></td>
         <td>${badge(d.status)}</td>
         <td>${escapeHtml(d.name)}</td>
         <td>${escapeHtml(d.site_name)}</td>
@@ -577,15 +745,25 @@
     }).join("");
     $("inv-empty").hidden = rows.length > 0;
     $("inv-body").querySelectorAll("tr").forEach((tr) => {
+      const id = Number(tr.dataset.device);
+      const box = tr.querySelector("input[type=checkbox]");
+      box.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        toggleRange("inventory", id, ev.shiftKey);
+        renderInventory();
+      });
       tr.addEventListener("click", () => {
         if (!confirmLeaveForm()) return;
         creatingDevice = false;
+        bulkInvOpen = false;
         portReturnDeviceId = null;
-        selectedDeviceId = Number(tr.dataset.device);
+        selectedDeviceId = id;
         editDirty = false;
         showDevice(selectedDeviceId);
+        renderInventory();
       });
     });
+    updateBulkButtons("inventory");
   }
 
   async function showDevice(id) {
@@ -913,6 +1091,249 @@
     `;
   }
 
+  function leaveSelect(label, name, options) {
+    return selectField(label, name, [blankOption("Leave unchanged"), ...options], "", "wide");
+  }
+
+  function bulkDeviceForm(ids) {
+    const n = ids.size;
+    const chosen = (state.devices || []).filter((d) => ids.has(d.id));
+    const keepDefault = chosen.find((d) => d.mgmt_host) || chosen[0];
+    const keepOpts = chosen.map((d) => ({
+      value: d.id,
+      label: `${d.name}${d.mgmt_host ? ` · ${d.mgmt_host}` : ""}`,
+    }));
+    const mergeBlock = n > 1 ? `
+        <h3>Merge into one device</h3>
+        <p class="muted">Ports and paths move onto the kept device. The others are deleted. Same-named ports are combined.</p>
+        ${selectField("Keep this device", "merge_into", keepOpts, keepDefault && keepDefault.id, "wide")}
+        <p class="form-actions"><button type="button" class="btn" id="bulk-inv-merge">Merge ${n - 1} into kept device</button></p>
+    ` : "";
+    return `
+      <form class="form" id="bulk-inv-form">
+        <h2>Bulk edit ${n} device${n === 1 ? "" : "s"}</h2>
+        <p class="muted">Empty fields are left alone. Username/password apply to each device's own env names.</p>
+        <div class="form-grid">
+          ${leaveSelect("Site", "site_id", (state.sites || []).map((s) => ({ value: s.id, label: s.name })))}
+          ${leaveSelect("Vendor", "vendor", [
+            { value: "appear", label: "Appear" },
+            { value: "haivision", label: "Haivision" },
+            { value: "net_insight", label: "Net Insight" },
+          ])}
+          ${field("Model", "model", "")}
+          ${leaveSelect("Access", "access_mode", [
+            { value: "direct_api", label: "direct_api" },
+            { value: "direct_snmp", label: "direct_snmp" },
+            { value: "via_nms", label: "via_nms" },
+          ])}
+          ${leaveSelect("Polling", "poll_enabled", [
+            { value: "true", label: "Enable" },
+            { value: "false", label: "Disable" },
+          ])}
+          <label>Username value (write-only)<input name="api_username" type="text" autocomplete="off" placeholder="leave blank to keep"></label>
+          <label>Password value (write-only)<input name="api_password" type="password" autocomplete="new-password" placeholder="leave blank to keep"></label>
+        </div>
+        ${mergeBlock}
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Apply to ${n}</button>
+          <button type="button" class="btn danger" id="bulk-inv-delete">Delete ${n}</button>
+          <button type="button" class="btn edit-cancel">Cancel</button>
+        </div>
+        <p class="form-msg"></p>
+      </form>
+    `;
+  }
+
+  function bulkFlowForm(ids) {
+    const n = ids.size;
+    return `
+      <form class="form" id="bulk-link-form">
+        <h2>Bulk edit ${n} flow${n === 1 ? "" : "s"}</h2>
+        <p class="muted">Empty fields are left alone.</p>
+        <div class="form-grid">
+          ${field("Signal", "signal_label", "")}
+          ${leaveSelect("Dest city", "dest_city_id", (state.cities || []).map((c) => ({ value: cityDbId(c), label: c.name })))}
+          ${leaveSelect("Dest site", "dest_site_id", (state.sites || []).map((s) => ({ value: s.id, label: s.name })))}
+          ${leaveSelect("Dest device", "dest_device_id", (state.devices || []).map((d) => ({ value: d.id, label: d.name })))}
+          ${leaveSelect("Direction", "direction", [
+            { value: "contribution", label: "contribution" },
+            { value: "distribution", label: "distribution" },
+          ])}
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Apply to ${n}</button>
+          <button type="button" class="btn danger" id="bulk-link-delete">Delete ${n}</button>
+          <button type="button" class="btn edit-cancel">Cancel</button>
+        </div>
+        <p class="form-msg"></p>
+      </form>
+    `;
+  }
+
+  function bulkPatchFromForm(form, kind) {
+    const data = cleanBody(formValues(form), kind);
+    const patch = {};
+    Object.keys(data).forEach((key) => {
+      const value = data[key];
+      if (value === "" || value == null) return;
+      patch[key] = value;
+    });
+    return patch;
+  }
+
+  function showBulkEditor(kind) {
+    if (!confirmLeaveForm()) return;
+    const ids = kind === "links" ? selectedLinkIds : selectedInvIds;
+    if (!ids.size) return;
+    editDirty = false;
+    if (kind === "links") {
+      bulkLinkOpen = true;
+      creatingFlow = false;
+      selectedFlowId = null;
+      const panel = $("link-panel");
+      panel.innerHTML = bulkFlowForm(ids);
+      bindBulkForm(panel, "flows", ids, () => {
+        bulkLinkOpen = false;
+        panel.innerHTML = `<p class="muted">Click a flow to edit, or New flow. Check rows for bulk edit.</p>`;
+        renderLinks();
+      });
+      renderLinks();
+    } else {
+      bulkInvOpen = true;
+      creatingDevice = false;
+      selectedDeviceId = null;
+      const panel = $("inv-panel");
+      panel.innerHTML = bulkDeviceForm(ids);
+      bindBulkForm(panel, "devices", ids, () => {
+        bulkInvOpen = false;
+        panel.innerHTML = `<p class="muted">Click a device to edit it. Check rows for bulk edit.</p>`;
+        renderInventory();
+      });
+      renderInventory();
+    }
+  }
+
+  function bindBulkForm(panel, collection, ids, onClose) {
+    const form = panel.querySelector("form.form");
+    if (!form) return;
+    const msg = form.querySelector(".form-msg");
+    form.addEventListener("input", () => { editDirty = true; });
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const patch = bulkPatchFromForm(form, collection);
+      if (!Object.keys(patch).length) {
+        if (msg) {
+          msg.className = "form-msg err";
+          msg.textContent = "Set at least one field to change.";
+        }
+        return;
+      }
+      try {
+        const result = await apiSend("POST", `/api/${collection}/bulk`, {
+          ids: [...ids],
+          patch,
+        });
+        editDirty = false;
+        const errN = (result.errors || []).length;
+        if (msg) {
+          msg.className = errN ? "form-msg err" : "form-msg ok";
+          msg.textContent = errN
+            ? `Updated ${result.updated.length}; ${errN} failed.`
+            : `Updated ${result.updated.length}.`;
+        }
+        await refresh();
+        if (!errN) onClose();
+      } catch (err) {
+        if (msg) {
+          msg.className = "form-msg err";
+          msg.textContent = err.message;
+        }
+      }
+    });
+    const del = form.querySelector("#bulk-inv-delete, #bulk-link-delete");
+    if (del) {
+      del.addEventListener("click", async () => {
+        await bulkDelete(collection, ids, onClose, msg);
+      });
+    }
+    const mergeBtn = form.querySelector("#bulk-inv-merge");
+    if (mergeBtn) {
+      mergeBtn.addEventListener("click", async () => {
+        const keep = Number(form.querySelector('[name="merge_into"]')?.value);
+        if (!keep) return;
+        const sources = [...ids].filter((id) => id !== keep);
+        const keepDev = (state.devices || []).find((d) => d.id === keep);
+        const label = keepDev ? keepDev.name : `device ${keep}`;
+        if (!window.confirm(
+          `Merge ${sources.length} device${sources.length === 1 ? "" : "s"} into ${label}? Ports and paths move; the others are deleted.`
+        )) return;
+        try {
+          const result = await apiSend("POST", "/api/devices/bulk", {
+            ids: [...ids],
+            merge_into: keep,
+          });
+          editDirty = false;
+          const errN = (result.errors || []).length;
+          selectedInvIds = new Set(errN ? result.errors.map((e) => e.id).concat([keep]) : [keep]);
+          await refresh();
+          if (errN && msg) {
+            msg.className = "form-msg err";
+            msg.textContent = `Merged ${result.merged.length}; ${errN} failed.`;
+            return;
+          }
+          bulkInvOpen = false;
+          selectedDeviceId = keep;
+          showDevice(keep);
+          renderInventory();
+        } catch (err) {
+          if (msg) {
+            msg.className = "form-msg err";
+            msg.textContent = err.message;
+          }
+        }
+      });
+    }
+    const cancel = form.querySelector(".edit-cancel");
+    if (cancel) {
+      cancel.addEventListener("click", () => {
+        if (!confirmLeaveForm()) return;
+        editDirty = false;
+        onClose();
+      });
+    }
+  }
+
+  async function bulkDelete(collection, ids, onClose, msg) {
+    const n = ids.size;
+    if (!n || !window.confirm(`Delete ${n} ${collection === "devices" ? "device" : "flow"}${n === 1 ? "" : "s"}?`)) {
+      return;
+    }
+    try {
+      const result = await apiSend("POST", `/api/${collection}/bulk`, {
+        ids: [...ids],
+        delete: true,
+      });
+      editDirty = false;
+      if (collection === "devices") selectedInvIds = new Set();
+      else selectedLinkIds = new Set();
+      await refresh();
+      const errN = (result.errors || []).length;
+      if (errN && msg) {
+        msg.className = "form-msg err";
+        msg.textContent = `Deleted ${result.deleted.length}; ${errN} failed.`;
+        return;
+      }
+      onClose();
+    } catch (err) {
+      if (msg) {
+        msg.className = "form-msg err";
+        msg.textContent = err.message;
+      } else {
+        window.alert(err.message);
+      }
+    }
+  }
+
   function flowForm(f) {
     return `
       <form class="form">
@@ -1171,6 +1592,7 @@
       renderMap();
       if (!KIOSK) {
         renderLinkFilters();
+        fillInvFilters();
         renderLinks();
         renderInventory();
       }
@@ -1192,10 +1614,59 @@
   });
   const invSearch = $("inv-search");
   if (invSearch) invSearch.addEventListener("input", renderInventory);
+  ["inv-site", "inv-vendor"].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener("change", renderInventory);
+  });
   const invNew = $("inv-new");
   if (invNew) invNew.addEventListener("click", showNewDevice);
   const linkNew = $("link-new");
   if (linkNew) linkNew.addEventListener("click", showNewFlow);
+
+  function bindSelectVisible(kind, toggle) {
+    const ids = kind === "links" ? selectedLinkIds : selectedInvIds;
+    const visible = (kind === "links" ? filteredFlows() : filteredDevices()).map((r) => r.id);
+    const allOn = visible.length > 0 && visible.every((id) => ids.has(id));
+    visible.forEach((id) => {
+      if (toggle && allOn) ids.delete(id);
+      else ids.add(id);
+    });
+    if (kind === "links") renderLinks();
+    else renderInventory();
+  }
+
+  const linkSelectVis = $("link-select-visible");
+  if (linkSelectVis) linkSelectVis.addEventListener("click", () => bindSelectVisible("links", false));
+  const invSelectVis = $("inv-select-visible");
+  if (invSelectVis) invSelectVis.addEventListener("click", () => bindSelectVisible("inventory", false));
+  const linkCheckAll = $("link-check-all");
+  if (linkCheckAll) linkCheckAll.addEventListener("change", () => bindSelectVisible("links", true));
+  const invCheckAll = $("inv-check-all");
+  if (invCheckAll) invCheckAll.addEventListener("change", () => bindSelectVisible("inventory", true));
+  const linkBulk = $("link-bulk");
+  if (linkBulk) linkBulk.addEventListener("click", () => showBulkEditor("links"));
+  const invBulk = $("inv-bulk");
+  if (invBulk) invBulk.addEventListener("click", () => showBulkEditor("inventory"));
+  const linkBulkDel = $("link-bulk-delete");
+  if (linkBulkDel) {
+    linkBulkDel.addEventListener("click", () => {
+      bulkDelete("flows", selectedLinkIds, () => {
+        bulkLinkOpen = false;
+        $("link-panel").innerHTML = `<p class="muted">Click a flow to edit, or New flow. Check rows for bulk edit.</p>`;
+        renderLinks();
+      });
+    });
+  }
+  const invBulkDel = $("inv-bulk-delete");
+  if (invBulkDel) {
+    invBulkDel.addEventListener("click", () => {
+      bulkDelete("devices", selectedInvIds, () => {
+        bulkInvOpen = false;
+        $("inv-panel").innerHTML = `<p class="muted">Click a device to edit it. Check rows for bulk edit.</p>`;
+        renderInventory();
+      });
+    });
+  }
 
   setView(currentView);
   tickClock();

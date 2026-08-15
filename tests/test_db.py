@@ -356,6 +356,45 @@ class TestDatabase(unittest.TestCase):
         self.assertTrue(device.snmp_enabled)
         self.assertEqual(device.snmp_version, "2c")
 
+    def test_merge_devices_moves_ports_and_flows(self):
+        site_id = self.db.add_site("New York")
+        keep = self.db.add_device(
+            site_id=site_id, name="NY-HAI-1030013", vendor="haivision",
+            mgmt_host="", poll_enabled=False,
+        )
+        extra = self.db.add_device(
+            site_id=site_id, name="NY-HAI-9.245", vendor="haivision",
+            mgmt_host="10.207.9.245", model="Makito X4",
+        )
+        keep_in = self.db.add_port(keep, "In 1", "sdi_in")
+        extra_in = self.db.add_port(extra, "In 1", "sdi_in")
+        extra_in2 = self.db.add_port(extra, "In 2", "sdi_in")
+        extra_net = self.db.add_port(extra, "10.207.9.245", "net")
+        self.db.add_flow("HAI 1011", keep, source_port_id=keep_in, dest_label="chi")
+        self.db.add_flow("HAI 1012", extra, source_port_id=extra_in2, dest_label="chi")
+        self.db.add_flow("HAI old", extra, source_port_id=extra_in, dest_label="dc")
+        self.db.merge_devices(extra, keep)
+        self.assertIsNone(self.db.get_device(extra))
+        kept = self.db.get_device(keep)
+        self.assertEqual(kept.mgmt_host, "10.207.9.245")
+        self.assertEqual(kept.model, "Makito X4")
+        ports = {p["name"]: p for p in self.db.list_ports(keep)}
+        self.assertEqual(set(ports), {"In 1", "In 2", "10.207.9.245"})
+        flows = self.db.list_flows()
+        self.assertEqual({f["source_device_id"] for f in flows}, {keep})
+        by_label = {f["label"]: f for f in flows}
+        self.assertEqual(by_label["HAI 1011"]["source_port_id"], keep_in)
+        self.assertEqual(by_label["HAI 1012"]["source_port_id"], extra_in2)
+        self.assertEqual(by_label["HAI old"]["source_port_id"], keep_in)
+
+    def test_merge_device_rejects_self(self):
+        site_id = self.db.add_site("Chicago")
+        dev = self.db.add_device(
+            site_id=site_id, name="CHI-X20", vendor="appear", mgmt_host="10.0.1.10",
+        )
+        with self.assertRaises(ValueError):
+            self.db.merge_devices(dev, dev)
+
 
 if __name__ == "__main__":
     unittest.main()

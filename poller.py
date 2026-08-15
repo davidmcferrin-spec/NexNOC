@@ -95,10 +95,19 @@ def bootstrap(db: Database, config: dict) -> None:
             )
             existing_sites[site_cfg["name"]] = site_id
             logger.info("Added site %r (id=%d) in city %r", site_cfg["name"], site_id, city_name or None)
-        elif city_id is not None:
-            row = db.get_site(existing_sites[site_cfg["name"]])
-            if row is not None and row["city_id"] is None:
-                db.set_site_city(row["id"], city_id, city_name)
+        else:
+            site_id = existing_sites[site_cfg["name"]]
+            if city_id is not None:
+                row = db.get_site(site_id)
+                if row is not None and row["city_id"] is None:
+                    db.set_site_city(row["id"], city_id, city_name)
+            updates = {}
+            if site_cfg.get("lat") is not None:
+                updates["lat"] = site_cfg["lat"]
+            if site_cfg.get("lng") is not None:
+                updates["lng"] = site_cfg["lng"]
+            if updates:
+                db.update_site(site_id, **updates)
 
     existing_devices = {d.name: d for d in db.list_devices(include_decommissioned=True)}
     for dev_cfg in config.get("devices", []):

@@ -187,6 +187,18 @@ main { flex: 1; min-height: 0; display: flex; }
   margin-top: 8px;
 }
 .site-head h3 { margin: 16px 0 8px; }
+.site-head button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.site-head button.linkish:hover { color: var(--accent); }
 .site-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .site-actions .btn { padding: 4px 8px; font-size: 12px; }
 .panel p { margin: 0 0 8px; }
@@ -231,6 +243,9 @@ main { flex: 1; min-height: 0; display: flex; }
 .table-wrap { flex: 1; overflow: auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th.check, td.check { width: 36px; padding-right: 4px; }
+td.check { cursor: default; }
+tbody tr.checked { background: #182233; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; position: sticky; top: 0; background: var(--bg); }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--panel-2); }

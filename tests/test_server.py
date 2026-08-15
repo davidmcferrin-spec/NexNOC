@@ -394,6 +394,67 @@ class TestHttpServer(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIsNone(self.db.get_flow(flow_id))
 
+    def test_bulk_patch_and_delete(self):
+        site_id = self.db.get_device(self.device_id).site_id
+        other = self.db.add_site("New York")
+        status, created = self._send("POST", "/api/devices", {
+            "name": "NY-HAI-1",
+            "vendor": "haivision",
+            "site_id": site_id,
+            "mgmt_host": "10.0.2.10",
+            "poll_enabled": False,
+        })
+        self.assertEqual(status, 201)
+        other_id = created["device"]["id"]
+        status, result = self._send("POST", "/api/devices/bulk", {
+            "ids": [self.device_id, other_id],
+            "patch": {"site_id": other, "poll_enabled": "true"},
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(sorted(result["updated"]), sorted([self.device_id, other_id]))
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(self.db.get_device(self.device_id).site_id, other)
+        self.assertTrue(self.db.get_device(other_id).poll_enabled)
+
+        status, f1 = self._send("POST", "/api/flows", {
+            "label": "HAI A", "source_device_id": self.device_id, "dest_label": "x",
+        })
+        status, f2 = self._send("POST", "/api/flows", {
+            "label": "HAI B", "source_device_id": other_id, "dest_label": "y",
+        })
+        status, deleted = self._send("POST", "/api/flows/bulk", {
+            "ids": [f1["flow"]["id"], f2["flow"]["id"]],
+            "delete": True,
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(len(deleted["deleted"]), 2)
+        self.assertIsNone(self.db.get_flow(f1["flow"]["id"]))
+
+    def test_bulk_merge_devices(self):
+        site_id = self.db.get_device(self.device_id).site_id
+        status, extra = self._send("POST", "/api/devices", {
+            "name": "CHI-X20-DUP",
+            "vendor": "appear",
+            "site_id": site_id,
+            "mgmt_host": "",
+        })
+        self.assertEqual(status, 201)
+        extra_id = extra["device"]["id"]
+        status, result = self._send("POST", "/api/devices/bulk", {
+            "ids": [self.device_id, extra_id],
+            "merge_into": self.device_id,
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(result["kept"], self.device_id)
+        self.assertEqual(result["merged"], [extra_id])
+        self.assertIsNone(self.db.get_device(extra_id))
+        self.assertIsNotNone(self.db.get_device(self.device_id))
+
+    def test_bulk_requires_ids(self):
+        with self.assertRaises(AssertionError) as ctx:
+            self._send("POST", "/api/devices/bulk", {"patch": {"poll_enabled": True}})
+        self.assertIn("400", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

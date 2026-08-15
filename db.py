@@ -442,6 +442,109 @@ class Database:
         with self.connect() as conn:
             conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))
 
+    def merge_devices(self, source_id: int, target_id: int) -> None:
+        """Move ports, flows, and history from source onto target, then delete source.
+
+        Same-named ports stay on the target; flows that pointed at the source
+        port are remapped. Blank target fields (mgmt_host, model, credential
+        env names) are filled from the source.
+        """
+        if source_id == target_id:
+            raise ValueError("cannot merge a device into itself")
+        source = self.get_device(source_id)
+        target = self.get_device(target_id)
+        if source is None or target is None:
+            raise ValueError("both devices must exist to merge")
+        now = utcnow_iso()
+        with self.connect() as conn:
+            src = conn.execute("SELECT * FROM devices WHERE id = ?", (source_id,)).fetchone()
+            tgt = conn.execute("SELECT * FROM devices WHERE id = ?", (target_id,)).fetchone()
+            fills = []
+            params = []
+            if not (tgt["mgmt_host"] or "").strip() and (src["mgmt_host"] or "").strip():
+                conn.execute("UPDATE devices SET mgmt_host = '' WHERE id = ?", (source_id,))
+                fills.append("mgmt_host = ?")
+                params.append(src["mgmt_host"])
+            for col in (
+                "model", "firmware_version", "snmp_host", "driver_override",
+                "api_username_env", "api_password_env", "snmp_community_env",
+                "snmp_v3_user_env", "snmp_v3_auth_pass_env", "snmp_v3_priv_pass_env",
+                "nms_host", "nms_api_key_env", "nms_device_ref",
+            ):
+                if not (tgt[col] or "").strip() and (src[col] or "").strip():
+                    fills.append(f"{col} = ?")
+                    params.append(src[col])
+            if fills:
+                params.extend([now, target_id])
+                conn.execute(
+                    f"UPDATE devices SET {', '.join(fills)}, updated_at = ? WHERE id = ?",
+                    params,
+                )
+
+            src_ports = conn.execute(
+                "SELECT * FROM ports WHERE device_id = ?", (source_id,),
+            ).fetchall()
+            for port in src_ports:
+                existing = conn.execute(
+                    "SELECT id FROM ports WHERE device_id = ? AND name = ?",
+                    (target_id, port["name"]),
+                ).fetchone()
+                if existing:
+                    for col in ("source_port_id", "dest_port_id", "origin_port_id"):
+                        conn.execute(
+                            f"UPDATE flows SET {col} = ? WHERE {col} = ?",
+                            (existing["id"], port["id"]),
+                        )
+                    conn.execute("DELETE FROM ports WHERE id = ?", (port["id"],))
+                else:
+                    conn.execute(
+                        "UPDATE ports SET device_id = ? WHERE id = ?",
+                        (target_id, port["id"]),
+                    )
+
+            for table, key in (
+                ("modules", "slot"),
+                ("licenses", "feature_name"),
+            ):
+                rows = conn.execute(
+                    f"SELECT * FROM {table} WHERE device_id = ?", (source_id,),
+                ).fetchall()
+                for row in rows:
+                    clash = conn.execute(
+                        f"SELECT id FROM {table} WHERE device_id = ? AND {key} = ?",
+                        (target_id, row[key]),
+                    ).fetchone()
+                    if clash:
+                        conn.execute(f"DELETE FROM {table} WHERE id = ?", (row["id"],))
+                    else:
+                        conn.execute(
+                            f"UPDATE {table} SET device_id = ? WHERE id = ?",
+                            (target_id, row["id"]),
+                        )
+
+            for table in ("signals", "config_snapshots", "poll_log"):
+                conn.execute(
+                    f"UPDATE {table} SET device_id = ? WHERE device_id = ?",
+                    (target_id, source_id),
+                )
+            conn.execute(
+                "UPDATE trap_log SET device_id = ? WHERE device_id = ?",
+                (target_id, source_id),
+            )
+            conn.execute(
+                "UPDATE flows SET source_device_id = ? WHERE source_device_id = ?",
+                (target_id, source_id),
+            )
+            conn.execute(
+                "UPDATE flows SET dest_device_id = ? WHERE dest_device_id = ?",
+                (target_id, source_id),
+            )
+            conn.execute(
+                "UPDATE flows SET origin_device_id = ? WHERE origin_device_id = ?",
+                (target_id, source_id),
+            )
+            conn.execute("DELETE FROM devices WHERE id = ?", (source_id,))
+
     def update_device(self, device_id: int, **fields) -> None:
         allowed = {
             "site_id", "name", "vendor", "device_role", "model", "firmware_version",
