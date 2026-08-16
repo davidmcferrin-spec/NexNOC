@@ -2082,11 +2082,15 @@
     if (!confirmLeaveForm()) return;
     setupCreating = kind;
     if (kind === "city") {
+      setupCityId = null;
       setupSiteId = null;
       setupDeviceId = null;
     } else if (kind === "site") {
+      setupSiteId = null;
       setupDeviceId = null;
       newSiteCityId = setupCityId;
+    } else if (kind === "device") {
+      setupDeviceId = null;
     }
     editDirty = false;
     renderSetup(true);
@@ -2097,20 +2101,20 @@
     if (!panel || !state) return;
     if (setupCreating === "city") {
       panel.innerHTML = cityForm(null);
-      bindSetupForm("cities", () => setupCityId, (id) => { setupCityId = id; setupCreating = null; });
+      bindSetupForm("cities", () => (setupCreating === "city" ? null : setupCityId), (id) => { setupCityId = id; setupCreating = null; });
       bindGeoAndPins(panel, "cities");
       return;
     }
     if (setupCreating === "site") {
       newSiteCityId = setupCityId;
       panel.innerHTML = siteForm(null);
-      bindSetupForm("sites", () => setupSiteId, (id) => { setupSiteId = id; setupCreating = null; });
+      bindSetupForm("sites", () => (setupCreating === "site" ? null : setupSiteId), (id) => { setupSiteId = id; setupCreating = null; });
       bindGeoAndPins(panel, "sites");
       return;
     }
     if (setupCreating === "device") {
       panel.innerHTML = deviceForm(null, { site_id: setupSiteId });
-      bindSetupForm("devices", () => setupDeviceId, (id) => { setupDeviceId = id; setupCreating = null; });
+      bindSetupForm("devices", () => (setupCreating === "device" ? null : setupDeviceId), (id) => { setupDeviceId = id; setupCreating = null; });
       return;
     }
     if (setupDeviceId) {
