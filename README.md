@@ -104,7 +104,7 @@ sudo systemctl restart nexnoc-poller
 Open `http://<hostname>/` or `http://<hostname>/kiosk`.
 
 ```bash
-sudo ./setup.sh update     # after git pull: rsync + restart
+sudo ./setup.sh update     # after git pull: rsync + restart (does not re-import inventory)
 sudo ./setup.sh --check    # sanity
 sudo ./setup.sh status
 ```
@@ -349,7 +349,7 @@ for admins cleaning up inventory without hand-editing SQLite.
 | `web/vendor/leaflet/` | Vendored Leaflet 1.9.4 (no npm) |
 | `scripts/fetch_tiles.py` | Build a local CONUS XYZ tile pack for air-gapped / production use |
 | `config.example.json` | Template multi-vendor inventory config (includes example trunks/signals) |
-| `setup.sh` | Debian/Ubuntu installer: apt, systemd, Apache (site + `/api` proxy), SQLite bootstrap |
+| `setup.sh` | Debian/Ubuntu installer: apt, systemd, Apache (site + `/api` proxy). `install` bootstraps SQLite from config.json; `update` rsyncs code and restarts units without touching inventory |
 | `systemd/` | `nexnoc-poller.service` + `nexnoc-web.service` + `nexnoc-trapd.service` |
 | `trapd.py` | SNMPv1/v2c UDP trap listener (v3 via snmptrapd traphandle) |
 | `config/apache-nexnoc.conf` | Apache vhost: `web/` + `/tiles` + `/uploads/pins`; `/api/` → loopback |

@@ -31,6 +31,17 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("sqlite3", text)
         self.assertNotIn("pip install", text)
 
+    def test_setup_update_does_not_bootstrap_db(self):
+        text = _read("setup.sh")
+        start = text.index("cmd_update()")
+        end = text.index("while (( $# > 0 )); do")
+        update_fn = text[start:end]
+        self.assertNotIn("bootstrap_db", update_fn)
+        self.assertIn("cmd_install()", text)
+        install_start = text.index("cmd_install()")
+        install_fn = text[install_start:start]
+        self.assertIn("bootstrap_db", install_fn)
+
     def test_svc_helper_uses_no_pager(self):
         helper = _read("scripts/nexnoc-svc")
         self.assertIn("--no-pager", helper)

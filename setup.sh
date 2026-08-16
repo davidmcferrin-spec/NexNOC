@@ -6,6 +6,7 @@
 #
 #   sudo ./setup.sh              full install (apt, units, Apache, bootstrap)
 #   sudo ./setup.sh update       rsync code + restart running units
+#                                (does not re-import config.json into the DB)
 #   sudo ./setup.sh --check      sanity checks only
 #   sudo ./setup.sh status       systemctl snapshot
 #
@@ -50,6 +51,7 @@ Install and maintain NexNOC on Debian or Ubuntu LTS (Apache + SQLite).
 Usage:
   sudo $0                 First-time / re-run install
   sudo $0 update          Refresh code from this checkout, restart units
+                          (does not re-import config.json into the live DB)
   sudo $0 --check         Sanity checks only
   sudo $0 status          systemctl snapshot
   $0 --help
@@ -497,7 +499,7 @@ Next:
   2. Set device usernames/passwords in Inventory (stored in noc.db)
   3. Optional — local map tiles (no CDN): python3 ${PREFIX}/scripts/fetch_tiles.py --out ${DATA}/tiles
      then set map.local_tile_dir to ${DATA}/tiles in config.json and restart nexnoc-web
-  4. sudo ${PREFIX}/setup.sh update   # after git pull, or re-run install
+  4. sudo ${PREFIX}/setup.sh update   # after git pull: rsync + restart (no DB import)
   5. sudo systemctl restart nexnoc-poller
 
 Before calling this production: docs/DEPLOY.md (TLS, firewall, credential
@@ -546,9 +548,11 @@ cmd_update() {
   if [[ -d /etc/apache2/sites-available ]]; then
     install_apache
   fi
-  if [[ -f "${ETC}/config.json" ]]; then
-    bootstrap_db
-  fi
+  # Live inventory in noc.db is the source of truth after first install.
+  # Re-importing config.json here would add leftover sample/dev rows on
+  # every product iteration. To import deliberately:
+  #   sudo -u nexnoc python3 ${PREFIX}/poller.py --config ${ETC}/config.json \
+  #     --db ${DATA}/noc.db --bootstrap-only
   restart_running
   cmd_check || true
   echo
