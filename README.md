@@ -195,6 +195,15 @@ both on first login). The board is `/dashboard`. `/kiosk` is an anonymous
 wall board and stays public. The page polls `/api/state` every 5 seconds —
 no WebSocket stack. Bind defaults to localhost.
 
+**Inventory → Import CSV** creates devices from a spreadsheet. Required
+columns are `name` and `vendor` (`appear` / `haivision` / `net_insight` /
+`generic_snmp`). Optional: `mgmt_host`, `model`, `city`, `site`,
+username/password. If city+site match an existing location the device
+goes there; otherwise it lands in the reserved **Unassigned** city/site
+(no map pin). Re-import fills blank fields only and will not move a
+device that is already placed. Use bulk edit to assign Unassigned rows
+to a real site.
+
 The map is Leaflet (vendored in `web/vendor/leaflet/`, no npm). Dev uses
 Esri Light Gray Canvas tiles from the public CDN (switchable on the board) — pan, zoom, real geography.
 Kiosk uses the same map. For production, build a local XYZ pack and point
@@ -330,7 +339,7 @@ for admins cleaning up inventory without hand-editing SQLite.
 |---|---|
 | `schema.sql` | Full DB schema (live tables plus unused backlog tables: licenses, config_snapshots, routing_audit) |
 | `db.py` | SQLite data access layer — `Device` is vendor/driver-agnostic; also owns `merge_devices()` |
-| `inventory_api.py` | Inventory REST handlers: CRUD, bulk patch/delete/merge, port-direction inference |
+| `inventory_api.py` | Inventory REST handlers: CRUD, bulk patch/delete/merge, CSV import into Unassigned |
 | `audit.py` | Append-only JSONL audit log; `audit_writable()` gates writes fail-closed |
 | `docs/DRIVERS.md` | How to add a vendor, model, or firmware-ranged driver |
 | `docs/ROUTING.md` | Routing control design — backlog idea, not on the roadmap, not implemented |

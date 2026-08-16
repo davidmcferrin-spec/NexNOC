@@ -146,6 +146,8 @@
           <option value="net_insight">Net Insight</option>
         </select>
         <button type="button" class="btn" id="inv-new">New device</button>
+        <button type="button" class="btn" id="inv-import">Import CSV</button>
+        <input id="inv-import-file" type="file" accept=".csv,text/csv" hidden>
         <button type="button" class="btn" id="inv-select-visible">Select visible</button>
         <button type="button" class="btn" id="inv-bulk" disabled>Bulk edit</button>
         <button type="button" class="btn danger" id="inv-bulk-delete" disabled>Delete selected</button>
@@ -170,7 +172,7 @@
             </thead>
             <tbody id="inv-body"></tbody>
           </table>
-          <p class="empty" id="inv-empty" hidden>No devices. Add one here, or import config.json once via setup.sh.</p>
+          <p class="empty" id="inv-empty" hidden>No devices. Add one here, or import a CSV into Unassigned.</p>
         </div>
         <aside class="panel" id="inv-panel">
           <p class="muted">Click a device to edit it, or check rows for bulk edit. Host and credentials can be filled in later.</p>

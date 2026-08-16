@@ -43,6 +43,12 @@ VALID_PORT_KINDS = {"sdi_in", "sdi_out", "net", "mgmt", "other"}
 VALID_PORT_CAPABILITIES = {"", "input", "output", "assignable"}
 VALID_PORT_DIRECTIONS = {"", "input", "output", "unused"}
 VALID_GEO_SOURCES = {"", "geocode", "manual"}
+UNASSIGNED_CITY_NAME = "Unassigned"
+UNASSIGNED_SITE_NAME = "Unassigned"
+UNASSIGNED_NOTES = (
+    "Holding bin for imported devices. Place them on a real site; "
+    "this location stays off the map."
+)
 VALID_FLOW_STATUSES = VALID_SIGNAL_STATUSES
 VALID_SNMP_VERSIONS = {"1", "2c", "3"}
 DEVICE_SECRET_COLUMNS = (
@@ -432,6 +438,54 @@ class Database:
         with self.connect() as conn:
             return conn.execute("SELECT * FROM sites WHERE name = ?", (name,)).fetchone()
 
+    def find_site_by_name(self, name: str) -> Optional[sqlite3.Row]:
+        name = (name or "").strip()
+        if not name:
+            return None
+        exact = self.get_site_by_name(name)
+        if exact is not None:
+            return exact
+        needle = name.lower()
+        for row in self.list_sites():
+            if (row["name"] or "").strip().lower() == needle:
+                return row
+        return None
+
+    def find_city_by_name(self, name: str) -> Optional[sqlite3.Row]:
+        name = (name or "").strip()
+        if not name:
+            return None
+        exact = self.get_city_by_name(name)
+        if exact is not None:
+            return exact
+        needle = name.lower()
+        for row in self.list_cities():
+            if (row["name"] or "").strip().lower() == needle:
+                return row
+        return None
+
+    def is_holding_name(self, name: Optional[str]) -> bool:
+        return (name or "").strip().lower() == UNASSIGNED_SITE_NAME.lower()
+
+    def ensure_unassigned_site(self) -> int:
+        """Reserved city+site for CSV imports. No coordinates — stays off the map."""
+        city = self.get_city_by_name(UNASSIGNED_CITY_NAME)
+        if city is None:
+            city_id = self.add_city(UNASSIGNED_CITY_NAME, notes=UNASSIGNED_NOTES)
+        else:
+            city_id = city["id"]
+        site = self.get_site_by_name(UNASSIGNED_SITE_NAME)
+        if site is None:
+            return self.add_site(
+                UNASSIGNED_SITE_NAME,
+                city=UNASSIGNED_CITY_NAME,
+                city_id=city_id,
+                notes=UNASSIGNED_NOTES,
+            )
+        if site["city_id"] != city_id:
+            self.set_site_city(site["id"], city_id, UNASSIGNED_CITY_NAME)
+        return site["id"]
+
     def update_site(self, site_id: int, **fields) -> None:
         allowed = {
             "name", "city", "city_id", "address", "lat", "lng", "notes",
@@ -745,6 +799,19 @@ class Database:
     def get_device(self, device_id: int) -> Optional[Device]:
         with self.connect() as conn:
             row = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
+            return Device.from_row(row) if row else None
+
+    def get_device_by_name(self, name: str) -> Optional[Device]:
+        name = (name or "").strip()
+        if not name:
+            return None
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM devices WHERE name = ?", (name,)).fetchone()
+            if row:
+                return Device.from_row(row)
+            row = conn.execute(
+                "SELECT * FROM devices WHERE lower(name) = lower(?)", (name,),
+            ).fetchone()
             return Device.from_row(row) if row else None
 
     def find_device_by_mgmt_host(self, host: str, exclude_id: Optional[int] = None) -> Optional[Device]:

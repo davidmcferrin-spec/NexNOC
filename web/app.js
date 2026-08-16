@@ -212,8 +212,8 @@
 
   function mapNodes() {
     const cities = state.cities || [];
-    if (cities.length) return cities.filter((c) => c.lat != null && c.lng != null);
-    return (state.sites || []).filter((s) => s.lat != null && s.lng != null);
+    if (cities.length) return cities.filter((c) => !c.holding && c.lat != null && c.lng != null);
+    return (state.sites || []).filter((s) => !s.holding && s.lat != null && s.lng != null);
   }
 
   function mapZoom() {
@@ -1125,7 +1125,11 @@
   function fillInvFilters() {
     const el = $("inv-site");
     if (!el || !state) return;
-    fillSelect(el, state.sites || [], "All sites", "id", "name");
+    const sites = (state.sites || []).map((s) => ({
+      ...s,
+      name: s.holding ? `${s.name} (place these)` : s.name,
+    }));
+    fillSelect(el, sites, "All sites", "id", "name");
   }
 
   function renderInventory() {
@@ -1273,6 +1277,69 @@
         showDevice(deviceId);
       },
     });
+  }
+
+  const CSV_TEMPLATE = "name,vendor,mgmt_host,model,city,site\nCHI-X20-1,appear,10.0.1.10,X20,,\n";
+
+  function showImportResult(result) {
+    const panel = $("inv-panel");
+    if (!panel) return;
+    const created = result.created || [];
+    const updated = result.updated || [];
+    const skipped = result.skipped || [];
+    const errors = result.errors || [];
+    const list = (rows, fmt) => rows.length
+      ? `<ul class="row-list">${rows.map((row) => `<li><span>${escapeHtml(fmt(row))}</span></li>`).join("")}</ul>`
+      : `<p class="muted">None.</p>`;
+    panel.innerHTML = `
+      <div class="form">
+        <h2>CSV import</h2>
+        <p>Created ${created.length}, updated ${updated.length} (blank fields only), skipped ${skipped.length}, errors ${errors.length}.</p>
+        <p class="muted">New devices without a matching city/site landed in ${escapeHtml(result.holding_site || "Unassigned")}. Use bulk edit to place them.</p>
+        <h3>Created</h3>
+        ${list(created, (r) => r.name)}
+        <h3>Updated</h3>
+        ${list(updated, (r) => r.name)}
+        <h3>Skipped</h3>
+        ${list(skipped, (r) => `${r.name} — ${r.reason || "already exists"}`)}
+        <h3>Errors</h3>
+        ${list(errors, (r) => `line ${r.line}: ${r.name || "?"} — ${r.error}`)}
+        <p class="muted">Columns: name, vendor, mgmt_host, model, city, site. Vendor is appear / haivision / net_insight / generic_snmp.</p>
+        <div class="form-actions">
+          <button type="button" class="btn" id="inv-csv-template">Download template</button>
+        </div>
+      </div>
+    `;
+    const tmpl = $("inv-csv-template");
+    if (tmpl) tmpl.addEventListener("click", downloadCsvTemplate);
+  }
+
+  function downloadCsvTemplate() {
+    const blob = new Blob([CSV_TEMPLATE], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "nexnoc-devices.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importDeviceCsv(text) {
+    const panel = $("inv-panel");
+    if (panel) panel.innerHTML = `<p class="muted">Importing…</p>`;
+    try {
+      const result = await apiSend("POST", "/api/devices/import", { csv: text });
+      await refresh();
+      if (result.holding_site_id && $("inv-site")) {
+        $("inv-site").value = String(result.holding_site_id);
+      }
+      renderInventory();
+      showImportResult(result);
+    } catch (err) {
+      if (panel) {
+        panel.innerHTML = `<p class="form-msg err">${escapeHtml(err.message)}</p>`;
+      }
+    }
   }
 
   function showNewDevice() {
@@ -3024,6 +3091,18 @@
   });
   const invNew = $("inv-new");
   if (invNew) invNew.addEventListener("click", showNewDevice);
+  const invImport = $("inv-import");
+  const invImportFile = $("inv-import-file");
+  if (invImport && invImportFile) {
+    invImport.addEventListener("click", () => invImportFile.click());
+    invImportFile.addEventListener("change", async () => {
+      const file = invImportFile.files && invImportFile.files[0];
+      invImportFile.value = "";
+      if (!file) return;
+      const text = await file.text();
+      await importDeviceCsv(text);
+    });
+  }
   const linkNew = $("link-new");
   if (linkNew) linkNew.addEventListener("click", showNewFlow);
   const setupAddCity = $("setup-add-city");

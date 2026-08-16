@@ -36,7 +36,7 @@ from urllib.parse import unquote, urlparse
 from audit import audit_log, audit_writable
 from auth import load_session_user, next_url, parse_query, request_is_secure, token_from_cookie
 from auth_api import AuthError, handle_auth
-from db import Database, Device, utcnow_iso
+from db import UNASSIGNED_SITE_NAME, Database, Device, utcnow_iso
 from envfile import default_env_path
 from inventory_api import SECRET_KEYS, default_pin_dir, device_secret_flags, handle as handle_inventory
 from pins import BUILTIN_PINS
@@ -265,6 +265,7 @@ def _build_cities(sites_out: list[dict], city_rows: list[dict],
             "lng": row["lng"],
             "geo_source": row.get("geo_source") or "",
             "notes": row.get("notes") or "",
+            "holding": (row["name"] or "") == UNASSIGNED_SITE_NAME,
             "site_ids": [],
             "device_statuses": [],
         }
@@ -306,6 +307,7 @@ def _build_cities(sites_out: list[dict], city_rows: list[dict],
             "devices_by_status": _count_by(statuses),
             "notes": bucket.get("notes") or "",
             "geo_source": bucket.get("geo_source") or "",
+            "holding": bool(bucket.get("holding")) or bucket["name"] == UNASSIGNED_SITE_NAME,
         })
     out.sort(key=lambda c: c["name"])
     return out
@@ -496,6 +498,7 @@ def build_dashboard_state(db: Database, env_path: Optional[Path] = None) -> dict
             "pin_color": site.get("pin_color") or "#6aa4ff",
             "pin_upload": site.get("pin_upload") or "",
             "notes": site.get("notes") or "",
+            "holding": (site["name"] or "") == UNASSIGNED_SITE_NAME,
             "status": _worst(statuses, _DEVICE_RANK) if site_devices else "unknown",
             "device_count": len(site_devices),
             "devices_by_status": _count_by(statuses),

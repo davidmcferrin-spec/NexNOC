@@ -524,6 +524,25 @@ class TestHttpServer(unittest.TestCase):
         self.assertNotIn("api_password", listed)
         self.assertNotIn("secret-from-portal", json.dumps(payload))
 
+    def test_csv_import_and_holding_bin_protected(self):
+        status, result = self._send("POST", "/api/devices/import", {
+            "csv": "name,vendor,mgmt_host\nIMP-X20-1,appear,10.8.8.8\n",
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(len(result["created"]), 1)
+        holding_id = result["holding_site_id"]
+        device = self.db.get_device_by_name("IMP-X20-1")
+        self.assertEqual(device.site_id, holding_id)
+        state = json.loads(self._get("/api/state")[2])
+        holding_site = next(s for s in state["sites"] if s["id"] == holding_id)
+        self.assertTrue(holding_site["holding"])
+        self.assertIsNone(holding_site["lat"])
+        holding_city = next(c for c in state["cities"] if c.get("holding"))
+        self.assertEqual(holding_city["name"], "Unassigned")
+        status, payload = self._send("DELETE", f"/api/sites/{holding_id}", {}, raw=True)
+        self.assertEqual(status, 400)
+        self.assertIn("holding bin", payload["error"])
+
     def test_failed_inventory_write_audits_ok_false(self):
         status, payload = self._send("POST", "/api/cities", {}, raw=True)
         self.assertEqual(status, 400)

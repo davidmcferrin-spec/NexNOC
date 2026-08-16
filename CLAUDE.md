@@ -132,7 +132,8 @@ were pulled off the active roadmap — see "Future ideas" below.
 - ✅ Out-of-phase-order infrastructure (not on the Phase 1–2 roadmap, but
   live): local+LDAP auth/RBAC (see Phase 2 entry above), SNMP GET +
   trap ingestion (v1/v2c/v3) as a channel parallel to driver polling,
-  device merge + bulk inventory patch/delete, fail-closed audit logging,
+  device merge + bulk inventory patch/delete, CSV import into an
+  Unassigned holding city/site, fail-closed audit logging,
   overlapping poller cadence (~80-device freshness).
 
 The planned phases are done. Do not start a new product phase unless

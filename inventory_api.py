@@ -7,13 +7,22 @@ user, which are logins rather than passwords).
 from __future__ import annotations
 
 import base64
+import csv
+import io
 import os
 import re
 import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from db import DEVICE_SECRET_COLUMNS, Database
+from db import (
+    DEVICE_SECRET_COLUMNS,
+    UNASSIGNED_CITY_NAME,
+    UNASSIGNED_SITE_NAME,
+    VALID_ACCESS_MODES,
+    VALID_VENDORS,
+    Database,
+)
 from geocode import GeocodeError, geocode, geocode_or_none
 from pins import DEFAULT_PIN_COLOR, DEFAULT_PIN_ICON, valid_pin_color, valid_pin_icon
 
@@ -206,6 +215,19 @@ def release_port_if_unused(db: Database, port_id: Optional[int],
     apply_port_direction(db, port_id, "unused")
 
 
+def _is_holding(name) -> bool:
+    return (name or "").strip().lower() == UNASSIGNED_SITE_NAME.lower()
+
+
+def _refuse_holding_change(row, body: Optional[dict] = None, *, deleting: bool = False) -> None:
+    if not _is_holding(row["name"]):
+        return
+    if deleting:
+        raise ValueError("Unassigned is the import holding bin and cannot be deleted")
+    if body and "name" in body and (body.get("name") or "").strip() != row["name"]:
+        raise ValueError("Unassigned cannot be renamed")
+
+
 def _city_payload(row) -> dict:
     keys = row.keys() if hasattr(row, "keys") else []
     return {
@@ -215,6 +237,7 @@ def _city_payload(row) -> dict:
         "lng": row["lng"],
         "geo_source": row["geo_source"] if "geo_source" in keys else "",
         "notes": row["notes"] or "",
+        "holding": _is_holding(row["name"]),
     }
 
 
@@ -225,6 +248,7 @@ def _site_payload(row) -> dict:
     data.setdefault("pin_icon", DEFAULT_PIN_ICON)
     data.setdefault("pin_color", DEFAULT_PIN_COLOR)
     data.setdefault("pin_upload", None)
+    data["holding"] = _is_holding(data.get("name"))
     return data
 
 
@@ -250,6 +274,8 @@ def _handle_cities(db: Database, method: str, item_id: Optional[int], body: dict
     if db.get_city(item_id) is None:
         raise LookupError("city not found")
     if method == "PATCH":
+        existing = db.get_city(item_id)
+        _refuse_holding_change(existing, body)
         fields = {}
         for key in ("name", "notes", "geo_source"):
             if key in body:
@@ -265,6 +291,7 @@ def _handle_cities(db: Database, method: str, item_id: Optional[int], body: dict
         db.update_city(item_id, **fields)
         return 200, {"city": _city_payload(db.get_city(item_id))}
     if method == "DELETE":
+        _refuse_holding_change(db.get_city(item_id), deleting=True)
         db.delete_city(item_id)
         return 200, {"deleted": item_id}
     raise LookupError("not found")
@@ -320,6 +347,7 @@ def _handle_sites(db: Database, method: str, item_id: Optional[int], body: dict)
     if existing is None:
         raise LookupError("site not found")
     if method == "PATCH":
+        _refuse_holding_change(existing, body)
         fields = {}
         for key in ("name", "city", "notes", "address", "geo_source"):
             if key in body:
@@ -343,6 +371,7 @@ def _handle_sites(db: Database, method: str, item_id: Optional[int], body: dict)
         db.update_site(item_id, **fields)
         return 200, {"site": _site_payload(db.get_site(item_id))}
     if method == "DELETE":
+        _refuse_holding_change(existing, deleting=True)
         try:
             db.delete_site(item_id)
         except sqlite3.IntegrityError as exc:
@@ -600,6 +629,208 @@ def _handle_flows(db: Database, method: str, item_id: Optional[int], body: dict)
     raise LookupError("not found")
 
 
+CSV_MAX_ROWS = 500
+_CSV_ALIASES = {
+    "name": "name",
+    "device": "name",
+    "vendor": "vendor",
+    "mgmt_host": "mgmt_host",
+    "host": "mgmt_host",
+    "ip": "mgmt_host",
+    "mgmt_ip": "mgmt_host",
+    "model": "model",
+    "device_role": "device_role",
+    "role": "device_role",
+    "firmware_version": "firmware_version",
+    "firmware": "firmware_version",
+    "access_mode": "access_mode",
+    "access": "access_mode",
+    "api_username": "api_username",
+    "username": "api_username",
+    "user": "api_username",
+    "api_password": "api_password",
+    "password": "api_password",
+    "snmp_community": "snmp_community",
+    "community": "snmp_community",
+    "city": "city",
+    "site": "site",
+    "poll_enabled": "poll_enabled",
+    "poll": "poll_enabled",
+}
+_VENDOR_ALIASES = {
+    "appear": "appear",
+    "haivision": "haivision",
+    "hai": "haivision",
+    "makito": "haivision",
+    "net_insight": "net_insight",
+    "net insight": "net_insight",
+    "netinsight": "net_insight",
+    "nimbra": "net_insight",
+    "generic_snmp": "generic_snmp",
+    "generic": "generic_snmp",
+    "snmp": "generic_snmp",
+}
+_BLANK_UPDATE_KEYS = (
+    "mgmt_host", "model", "device_role", "firmware_version", "access_mode",
+    "api_username", "api_password", "snmp_community",
+)
+
+
+def _norm_header(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", (name or "").strip().lower()).strip("_")
+
+
+def normalize_vendor(value: str) -> str:
+    key = re.sub(r"[\s-]+", " ", (value or "").strip().lower())
+    if key in _VENDOR_ALIASES:
+        return _VENDOR_ALIASES[key]
+    underscored = key.replace(" ", "_")
+    if underscored in _VENDOR_ALIASES:
+        return _VENDOR_ALIASES[underscored]
+    if underscored in VALID_VENDORS:
+        return underscored
+    raise ValueError(f"unknown vendor {value!r}, must be one of {sorted(VALID_VENDORS)}")
+
+
+def parse_device_csv(text: str) -> list[dict]:
+    raw = (text or "").lstrip("\ufeff")
+    if not raw.strip():
+        raise ValueError("CSV is empty")
+    reader = csv.DictReader(io.StringIO(raw))
+    if not reader.fieldnames:
+        raise ValueError("CSV has no header row")
+    mapping = {}
+    for header in reader.fieldnames:
+        key = _CSV_ALIASES.get(_norm_header(header))
+        if key:
+            mapping[header] = key
+    if "name" not in mapping.values() or "vendor" not in mapping.values():
+        raise ValueError("CSV needs name and vendor columns")
+    rows = []
+    for index, src in enumerate(reader, start=2):
+        if index - 1 > CSV_MAX_ROWS:
+            raise ValueError(f"CSV has more than {CSV_MAX_ROWS} data rows")
+        row = {"_line": index}
+        empty = True
+        for header, key in mapping.items():
+            value = (src.get(header) or "").strip()
+            if value:
+                empty = False
+            row[key] = value
+        if empty:
+            continue
+        rows.append(row)
+    if not rows:
+        raise ValueError("CSV has no device rows")
+    return rows
+
+
+def _resolve_import_site(db: Database, row: dict, holding_id: int) -> int:
+    site_name = (row.get("site") or "").strip()
+    city_name = (row.get("city") or "").strip()
+    if site_name:
+        site = db.find_site_by_name(site_name)
+        if site is not None:
+            if city_name:
+                city = db.find_city_by_name(city_name)
+                site_city = ""
+                if "city_name" in site.keys():
+                    site_city = site["city_name"] or ""
+                if not site_city:
+                    site_city = site["city"] or ""
+                if city is not None and site["city_id"] not in (None, city["id"]) and site_city.lower() != city_name.lower():
+                    return holding_id
+            return site["id"]
+    return holding_id
+
+
+def _blank_updates(device, row: dict) -> dict:
+    fields = {}
+    for key in _BLANK_UPDATE_KEYS:
+        incoming = (row.get(key) or "").strip()
+        if not incoming:
+            continue
+        current = getattr(device, key, None)
+        if current is None or str(current).strip() == "":
+            if key == "access_mode" and incoming not in VALID_ACCESS_MODES:
+                continue
+            fields[key] = incoming
+    if "mgmt_host" in fields and device.poll_enabled is False and fields["mgmt_host"]:
+        fields["poll_enabled"] = True
+    return fields
+
+
+def import_devices(db: Database, env_path: Path, text: str) -> dict:
+    rows = parse_device_csv(text)
+    holding_id = db.ensure_unassigned_site()
+    created, updated, skipped, errors = [], [], [], []
+    for row in rows:
+        name = (row.get("name") or "").strip()
+        line = row.get("_line")
+        try:
+            if not name:
+                raise ValueError("name is required")
+            vendor = normalize_vendor(row.get("vendor") or "")
+            existing = db.get_device_by_name(name)
+            if existing is not None:
+                fields = _blank_updates(existing, row)
+                if fields:
+                    db.update_device(existing.id, **fields)
+                    updated.append({"id": existing.id, "name": existing.name, "line": line})
+                else:
+                    skipped.append({
+                        "id": existing.id,
+                        "name": existing.name,
+                        "line": line,
+                        "reason": "already exists",
+                    })
+                continue
+            host = (row.get("mgmt_host") or "").strip()
+            if host and db.find_device_by_mgmt_host(host) is not None:
+                raise ValueError(f"management host {host} is already in use")
+            site_id = _resolve_import_site(db, row, holding_id)
+            access = (row.get("access_mode") or "").strip() or "direct_api"
+            if access not in VALID_ACCESS_MODES:
+                raise ValueError(f"invalid access_mode {access!r}")
+            poll = row.get("poll_enabled")
+            body = {
+                "name": name,
+                "vendor": vendor,
+                "site_id": site_id,
+                "mgmt_host": host,
+                "model": row.get("model") or "",
+                "device_role": row.get("device_role") or "",
+                "firmware_version": row.get("firmware_version") or "",
+                "access_mode": access,
+                "api_username": row.get("api_username") or "",
+                "api_password": row.get("api_password") or "",
+                "snmp_community": row.get("snmp_community") or "",
+            }
+            if poll != "":
+                body["poll_enabled"] = _as_bool(poll) if poll else bool(host)
+            status, payload = _handle_devices(db, env_path, "POST", None, body)
+            if status != 201:
+                raise ValueError(payload.get("error") if isinstance(payload, dict) else "create failed")
+            created.append({
+                "id": payload["device"]["id"],
+                "name": name,
+                "line": line,
+                "site_id": site_id,
+            })
+        except (ValueError, LookupError, sqlite3.IntegrityError) as exc:
+            errors.append({"line": line, "name": name, "error": str(exc)})
+    return {
+        "ok": True,
+        "holding_site_id": holding_id,
+        "holding_city": UNASSIGNED_CITY_NAME,
+        "holding_site": UNASSIGNED_SITE_NAME,
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "errors": errors,
+    }
+
+
 def _handle_bulk(db: Database, env_path: Path, collection: str, body: dict) -> tuple[int, dict]:
     ids = _bulk_ids(body)
     if body.get("merge_into") is not None:
@@ -653,6 +884,13 @@ def handle(db: Database, env_path: Path, method: str, path: str, body: dict,
     if len(parts) < 2 or parts[0] != "api":
         raise LookupError("not found")
     collection = parts[1]
+    if collection == "devices" and len(parts) == 3 and parts[2] == "import":
+        if method != "POST":
+            raise LookupError("not found")
+        text = body.get("csv")
+        if not isinstance(text, str):
+            raise ValueError("csv text is required")
+        return 200, import_devices(db, env_path, text)
     if collection == "geocode" and method == "POST":
         query = (body.get("query") or body.get("q") or "").strip()
         kind = body.get("kind") or "search"
