@@ -2,6 +2,8 @@
 
 nexnoc-web runs as the nexnoc user and cannot talk to systemd directly.
 setup.sh installs a sudoers drop-in that allows only this helper.
+Poller and trapd can also be started, stopped, enabled, or disabled.
+nexnoc-web is restart-only — stopping it would kill the admin page.
 """
 from __future__ import annotations
 
@@ -14,12 +16,13 @@ SERVICE_UNITS = (
     ("nexnoc-web", "Dashboard (loopback HTTP)"),
     ("nexnoc-poller", "Device health poller"),
     ("nexnoc-trapd", "SNMP trap listener"),
-    ("apache2", "Apache (site + API proxy)"),
 )
 ALLOWED_UNITS = {unit for unit, _label in SERVICE_UNITS}
-# Restarting these kills the request path (origin or the reverse proxy),
-# so the helper is fired and forgotten and the API returns 202 immediately.
-DETACHED_RESTART_UNITS = frozenset({"nexnoc-web", "apache2"})
+CONTROLLABLE_UNITS = frozenset({"nexnoc-poller", "nexnoc-trapd"})
+CONTROL_ACTIONS = frozenset({"start", "stop", "enable", "disable"})
+# Restarting this kills the request path, so the helper is fired and
+# forgotten and the API returns 202 immediately.
+DETACHED_RESTART_UNITS = frozenset({"nexnoc-web"})
 DEFAULT_HELPER = "/opt/nexnoc/scripts/nexnoc-svc"
 
 
@@ -56,6 +59,7 @@ def parse_show(text: str) -> dict:
     return {
         "active": raw.get("ActiveState") or "unknown",
         "sub": raw.get("SubState") or "",
+        "enabled": raw.get("UnitFileState") or "",
         "description": raw.get("Description") or "",
         "pid": int(pid_raw) if pid_raw.isdigit() else 0,
         "restarts": int(restarts_raw) if restarts_raw.isdigit() else 0,
@@ -106,6 +110,17 @@ def restart_service(unit: str) -> dict:
     return {"ok": True, "restarting": False}
 
 
+def control_service(unit: str, action: str) -> dict:
+    unit = check_unit(unit)
+    verb = (action or "").strip()
+    if verb not in CONTROL_ACTIONS:
+        raise SvcError(f"unknown action {action!r}")
+    if unit not in CONTROLLABLE_UNITS:
+        raise SvcError(f"{unit} cannot be {verb}d from Admin")
+    _run([verb, unit], timeout=30)
+    return {"ok": True, "action": verb, "restarting": False}
+
+
 def list_services() -> dict:
     services = []
     available = True
@@ -116,10 +131,12 @@ def list_services() -> dict:
             "label": label,
             "active": "unknown",
             "sub": "",
+            "enabled": "",
             "description": "",
             "pid": 0,
             "restarts": 0,
             "since": "",
+            "controllable": unit in CONTROLLABLE_UNITS,
         }
         try:
             row.update(service_status(unit))

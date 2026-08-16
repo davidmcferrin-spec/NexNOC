@@ -46,6 +46,10 @@ class TestPackaging(unittest.TestCase):
         helper = _read("scripts/nexnoc-svc")
         self.assertIn("--no-pager", helper)
         self.assertNotRegex(helper, r"--no-page(?!r)")
+        self.assertNotIn("apache2", helper)
+        self.assertIn("start|stop|enable|disable", helper)
+        self.assertIn("CONTROL_UNITS=", helper)
+        self.assertIn("UnitFileState", helper)
 
     def test_systemd_units_bind_loopback_and_use_env_file(self):
         poller = _read("systemd/nexnoc-poller.service")

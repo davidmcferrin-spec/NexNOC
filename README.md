@@ -273,10 +273,11 @@ ephemeral session (no row until an admin adds them).
 
 Idle timeout defaults to 120 minutes (Admin → Session). **Admin →
 Services and logs** shows systemd status and journal lines for
-`nexnoc-web`, `nexnoc-poller`, `nexnoc-trapd`, and `apache2`, and can
-restart them. That uses `scripts/nexnoc-svc` via a sudoers drop-in
-installed by `setup.sh` — re-run setup on an existing box or Restart
-will fail. Audit log is
+`nexnoc-web`, `nexnoc-poller`, and `nexnoc-trapd`. Restart is available
+on all three; the poller and trap listener can also be started, stopped,
+enabled, or disabled. That uses `scripts/nexnoc-svc` via a sudoers drop-in
+installed by `setup.sh` — re-run setup on an existing box or those
+actions will fail. Audit log is
 `audit.jsonl` next to the DB (or `/var/lib/nexnoc/audit.jsonl`); inventory
 writes are refused if the audit line cannot be written — `audit.audit_writable()`
 is checked *before* the write proceeds, so a full disk or bad permission on
@@ -335,7 +336,7 @@ for admins cleaning up inventory without hand-editing SQLite.
 | `docs/ROUTING.md` | Routing control design — backlog idea, not on the roadmap, not implemented |
 | `docs/DEPLOY.md` | Go-live checklist: TLS, firewall, credential sweep, DB backups |
 | `scripts/nexnoc-backup-db` | Online SQLite backup (cron-friendly, gzip + retention) |
-| `scripts/nexnoc-svc` | Allowlisted systemd status/logs/restart for Admin → Services |
+| `scripts/nexnoc-svc` | Allowlisted systemd status/logs/restart (plus start/stop/enable/disable for poller and trapd) |
 | `drivers/base.py` | `Driver` contract + `resolve_driver()` matching logic |
 | `drivers/registry.py` | The list of every driver NexNOC knows about |
 | `drivers/http_util.py` | Shared HTTP/JSON transport (Appear, Haivision) |

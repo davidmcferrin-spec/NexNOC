@@ -271,7 +271,7 @@
         </section>
         <section class="admin-section">
           <h2>Services and logs</h2>
-          <p class="hint">systemd status for the NexNOC units and Apache. Restarting the dashboard or Apache drops this page for a few seconds.</p>
+          <p class="hint">systemd status for NexNOC units. The poller and trap listener can be stopped or disabled here. Restarting the dashboard drops this page for a few seconds.</p>
           <p class="hint" id="admin-svc-error" hidden></p>
           <div class="table-wrap">
             <table class="admin-table">
@@ -279,6 +279,7 @@
                 <tr>
                   <th>Service</th>
                   <th>State</th>
+                  <th>Boot</th>
                   <th>Since</th>
                   <th></th>
                 </tr>

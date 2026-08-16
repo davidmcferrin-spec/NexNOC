@@ -3201,13 +3201,33 @@
   }
 
   let selectedService = "nexnoc-web";
-  const RESTART_DROPS_CONNECTION = { "nexnoc-web": true, "apache2": true };
+  const RESTART_DROPS_CONNECTION = { "nexnoc-web": true };
 
   function svcStateClass(active) {
     if (active === "active") return "is-active";
     if (active === "failed") return "is-failed";
     if (active === "inactive") return "is-inactive";
     return "";
+  }
+
+  function svcEnabledClass(enabled) {
+    if (enabled === "enabled" || enabled === "enabled-runtime" || enabled === "static") return "is-active";
+    if (enabled === "disabled" || enabled === "masked") return "is-disabled";
+    return "";
+  }
+
+  function svcActionButtons(svc) {
+    const id = escapeAttr(svc.id);
+    const buttons = [`<button type="button" class="btn" data-svc-action="restart" data-svc-unit="${id}">Restart</button>`];
+    if (svc.controllable) {
+      buttons.push(
+        `<button type="button" class="btn" data-svc-action="start" data-svc-unit="${id}">Start</button>`,
+        `<button type="button" class="btn" data-svc-action="stop" data-svc-unit="${id}">Stop</button>`,
+        `<button type="button" class="btn" data-svc-action="enable" data-svc-unit="${id}">Enable</button>`,
+        `<button type="button" class="btn" data-svc-action="disable" data-svc-unit="${id}">Disable</button>`,
+      );
+    }
+    return `<div class="admin-svc-actions">${buttons.join("")}</div>`;
   }
 
   async function loadServiceLogs(unit) {
@@ -3252,37 +3272,40 @@
             ${svc.sub ? ` <span class="hint">${escapeHtml(svc.sub)}</span>` : ""}
             ${svc.error ? `<div class="hint">${escapeHtml(svc.error)}</div>` : ""}
           </td>
-          <td>${escapeHtml(svc.since || "—")}</td>
           <td>
-            <button type="button" class="btn" data-restart-svc="${escapeAttr(svc.id)}">Restart</button>
+            <span class="admin-svc-state ${svcEnabledClass(svc.enabled)}">${escapeHtml(svc.enabled || "—")}</span>
           </td>
+          <td>${escapeHtml(svc.since || "—")}</td>
+          <td>${svcActionButtons(svc)}</td>
         </tr>`).join("");
       body.querySelectorAll("tr[data-svc]").forEach((row) => {
         row.addEventListener("click", (ev) => {
-          if (ev.target.closest("[data-restart-svc]")) return;
+          if (ev.target.closest("[data-svc-action]")) return;
           selectedService = row.dataset.svc;
           loadServices();
           loadServiceLogs(selectedService);
         });
       });
-      body.querySelectorAll("[data-restart-svc]").forEach((btn) => {
+      body.querySelectorAll("[data-svc-action]").forEach((btn) => {
         btn.addEventListener("click", async (ev) => {
           ev.stopPropagation();
-          const unit = btn.dataset.restartSvc;
-          if (!window.confirm(`Restart ${unit}?`)) return;
+          const unit = btn.dataset.svcUnit;
+          const action = btn.dataset.svcAction;
+          const label = action.charAt(0).toUpperCase() + action.slice(1);
+          if (!window.confirm(`${label} ${unit}?`)) return;
           btn.disabled = true;
           try {
-            await apiSend("POST", `/api/admin/services/${encodeURIComponent(unit)}/restart`, {});
+            await apiSend("POST", `/api/admin/services/${encodeURIComponent(unit)}/${encodeURIComponent(action)}`, {});
           } catch (exc) {
             if (!RESTART_DROPS_CONNECTION[unit]) {
               await loadServices();
               if (err) {
                 err.hidden = false;
-                err.textContent = exc.message || `Failed to restart ${unit}`;
+                err.textContent = exc.message || `Failed to ${action} ${unit}`;
               }
               return;
             }
-            /* nexnoc-web / apache2 restart can drop the connection */
+            /* nexnoc-web restart can drop the connection */
           }
           await new Promise((resolve) => setTimeout(resolve, RESTART_DROPS_CONNECTION[unit] ? 2000 : 400));
           await loadServices();

@@ -4,7 +4,14 @@ from __future__ import annotations
 from typing import Optional
 
 from audit import audit_log, audit_read
-from svc_util import SvcError, list_services, restart_service, service_logs
+from svc_util import (
+    CONTROL_ACTIONS,
+    SvcError,
+    control_service,
+    list_services,
+    restart_service,
+    service_logs,
+)
 from auth import (
     DEFAULT_LDAP,
     DEFAULT_ROLES,
@@ -168,13 +175,16 @@ def _handle_services(method, parts, body, user, client_ip):
         except SvcError as exc:
             raise AuthError(str(exc), 400) from exc
         return 200, {"ok": True, "unit": unit, "log": text}, None
-    if method == "POST" and action == "restart":
+    if method == "POST" and (action == "restart" or action in CONTROL_ACTIONS):
         try:
-            result = restart_service(unit)
+            result = (
+                restart_service(unit) if action == "restart"
+                else control_service(unit, action)
+            )
         except SvcError as exc:
-            audit_log("restart_service", user, client_ip, {"target": unit}, ok=False)
+            audit_log(f"{action}_service", user, client_ip, {"target": unit}, ok=False)
             raise AuthError(str(exc), 400) from exc
-        audit_log("restart_service", user, client_ip, {"target": unit}, ok=True)
+        audit_log(f"{action}_service", user, client_ip, {"target": unit}, ok=True)
         status = 202 if result.get("restarting") else 200
         return status, {"ok": True, "unit": unit, **result}, None
     raise LookupError("not found")

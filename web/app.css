@@ -995,4 +995,6 @@ body.kiosk #view-admin { display: none !important; }
 .admin-svc-state.is-active { color: var(--ok); }
 .admin-svc-state.is-failed { color: var(--bad); }
 .admin-svc-state.is-inactive { color: var(--muted); }
+.admin-svc-state.is-disabled { color: var(--muted); }
+.admin-svc-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 tr.admin-svc-selected td { background: var(--row-checked); }

@@ -10,9 +10,10 @@ from auth import authenticate, user_payload  # noqa: E402
 from auth_api import AuthError, handle_auth  # noqa: E402
 from db import Database  # noqa: E402
 from svc_util import (  # noqa: E402
-    DETACHED_RESTART_UNITS,
+    CONTROLLABLE_UNITS,
     SvcError,
     check_unit,
+    control_service,
     list_services,
     parse_show,
     restart_service,
@@ -23,17 +24,21 @@ from svc_util import (  # noqa: E402
 class TestSvcParse(unittest.TestCase):
     def test_parse_show(self):
         info = parse_show(
-            "ActiveState=active\nSubState=running\nDescription=Dashboard\n"
-            "MainPID=42\nNRestarts=1\nActiveEnterTimestamp=Sat 2026-08-15\n"
+            "ActiveState=active\nSubState=running\nUnitFileState=enabled\n"
+            "Description=Dashboard\nMainPID=42\nNRestarts=1\n"
+            "ActiveEnterTimestamp=Sat 2026-08-15\n"
         )
         self.assertEqual(info["active"], "active")
         self.assertEqual(info["sub"], "running")
+        self.assertEqual(info["enabled"], "enabled")
         self.assertEqual(info["pid"], 42)
         self.assertEqual(info["restarts"], 1)
 
     def test_unknown_unit_rejected(self):
         with self.assertRaises(SvcError):
             check_unit("sshd")
+        with self.assertRaises(SvcError):
+            check_unit("apache2")
         with self.assertRaises(SvcError):
             check_unit("../nexnoc-web")
 
@@ -51,7 +56,9 @@ class TestSvcHelper(unittest.TestCase):
             listing = list_services()
             self.assertTrue(listing["available"])
             ids = [row["id"] for row in listing["services"]]
-            self.assertEqual(ids, ["nexnoc-web", "nexnoc-poller", "nexnoc-trapd", "apache2"])
+            self.assertEqual(ids, ["nexnoc-web", "nexnoc-poller", "nexnoc-trapd"])
+            self.assertTrue(listing["services"][1]["controllable"])
+            self.assertFalse(listing["services"][0]["controllable"])
             self.assertEqual(listing["services"][0]["active"], "active")
             self.assertEqual(service_logs("nexnoc-poller", 50), "nexnoc-poller line 1\n")
 
@@ -62,20 +69,28 @@ class TestSvcHelper(unittest.TestCase):
         popen.assert_called_once()
         self.assertEqual(popen.call_args[0][0][3:], ["restart", "nexnoc-web"])
 
-    def test_restart_apache_does_not_wait(self):
-        self.assertIn("apache2", DETACHED_RESTART_UNITS)
-        with patch("svc_util.subprocess.Popen") as popen:
-            result = restart_service("apache2")
-        self.assertTrue(result["restarting"])
-        popen.assert_called_once()
-        self.assertEqual(popen.call_args[0][0][3:], ["restart", "apache2"])
-
     def test_restart_other_waits(self):
         with patch("svc_util._run", return_value="") as run:
             result = restart_service("nexnoc-poller")
         self.assertFalse(result["restarting"])
         run.assert_called_once()
         self.assertEqual(run.call_args[0][0], ["restart", "nexnoc-poller"])
+
+    def test_control_poller_and_trapd(self):
+        self.assertEqual(CONTROLLABLE_UNITS, frozenset({"nexnoc-poller", "nexnoc-trapd"}))
+        with patch("svc_util._run", return_value="") as run:
+            result = control_service("nexnoc-poller", "stop")
+        self.assertEqual(result["action"], "stop")
+        self.assertEqual(run.call_args[0][0], ["stop", "nexnoc-poller"])
+        with patch("svc_util._run", return_value="") as run:
+            control_service("nexnoc-trapd", "disable")
+        self.assertEqual(run.call_args[0][0], ["disable", "nexnoc-trapd"])
+
+    def test_control_web_rejected(self):
+        with self.assertRaises(SvcError):
+            control_service("nexnoc-web", "stop")
+        with self.assertRaises(SvcError):
+            control_service("nexnoc-poller", "reload")
 
 
 class TestSvcAdminApi(unittest.TestCase):
@@ -132,9 +147,19 @@ class TestSvcAdminApi(unittest.TestCase):
             )
         self.assertEqual(status, 202)
 
-        with patch("auth_api.restart_service", return_value={"ok": True, "restarting": True}):
+        with patch("auth_api.control_service", return_value={"ok": True, "action": "stop", "restarting": False}) as ctrl:
             status, payload, _cookie = handle_auth(
-                self.db, "POST", "/api/admin/services/apache2/restart",
+                self.db, "POST", "/api/admin/services/nexnoc-poller/stop",
                 {}, self.user, "t", False, "1.1.1.1",
             )
-        self.assertEqual(status, 202)
+        self.assertEqual(status, 200)
+        ctrl.assert_called_once()
+        self.assertEqual(ctrl.call_args[0][:2], ("nexnoc-poller", "stop"))
+
+        with patch("auth_api.control_service", return_value={"ok": True, "action": "disable", "restarting": False}):
+            status, payload, _cookie = handle_auth(
+                self.db, "POST", "/api/admin/services/nexnoc-trapd/disable",
+                {}, self.user, "t", False, "1.1.1.1",
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["action"], "disable")
