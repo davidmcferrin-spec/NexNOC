@@ -325,6 +325,8 @@
         city_b_id: f.dest_city_key,
         city_a_name: f.source_city_name || aName,
         city_b_name: f.dest_city_name || bName,
+        pair_a_id: String(aKey) < String(bKey) ? String(aKey) : String(bKey),
+        pair_b_id: String(aKey) < String(bKey) ? String(bKey) : String(aKey),
         pair_a_name: String(aKey) < String(bKey) ? aName : bName,
         pair_b_name: String(aKey) < String(bKey) ? bName : aName,
         source_city_id: f.source_city_key,
@@ -752,6 +754,39 @@
     return String(hop && hop.id || "").startsWith("pair:");
   }
 
+  function hopEndSites(hop) {
+    const out = [];
+    const add = (id, name) => {
+      if (id == null || id === "") return;
+      const key = String(id);
+      if (out.some((s) => s.id === key)) return;
+      out.push({ id: key, name: name || key });
+    };
+    add(hop.pair_a_id, hop.pair_a_name);
+    add(hop.pair_b_id, hop.pair_b_name);
+    return out;
+  }
+
+  function hopPerspectives(hop) {
+    if (isSitePairHop(hop)) return hopEndSites(hop);
+    return hopEndCities(hop);
+  }
+
+  function flowSiteKey(f, side) {
+    if (side === "source") return String(f.source_site_id || `src:${f.source_device_id || "x"}`);
+    return String(f.dest_site_id || `dst:${f.dest_city_key || f.dest_label || "x"}`);
+  }
+
+  function flowIsOutbound(f, perspective, pairMode) {
+    if (pairMode) return flowSiteKey(f, "source") === String(perspective);
+    return String(f.source_city_key || "") === String(perspective);
+  }
+
+  function flowIsInbound(f, perspective, pairMode) {
+    if (pairMode) return flowSiteKey(f, "dest") === String(perspective);
+    return String(f.dest_city_key || "") === String(perspective);
+  }
+
   function trunkFlows(hop) {
     const ids = hop.flow_ids || [];
     if (ids.length) {
@@ -767,33 +802,33 @@
     );
   }
 
-  function trunkDeviceKey(f, cityKey) {
-    if (f.source_city_key === cityKey && f.source_device_id) return `d:${f.source_device_id}`;
-    if (f.dest_city_key === cityKey && f.dest_device_id) return `d:${f.dest_device_id}`;
-    if (f.source_city_key === cityKey) {
-      return `s:${f.source_site_id || ""}:${f.source_device_name || "source"}`;
-    }
-    return `t:${f.dest_site_id || ""}:${f.dest_device_name || f.dest_label || f.dest_display || "dest"}`;
+  function trunkDeviceKey(f, perspective, pairMode) {
+    const outbound = flowIsOutbound(f, perspective, pairMode);
+    if (outbound && f.source_device_id) return `d:${f.source_device_id}`;
+    if (!outbound && f.dest_device_id) return `d:${f.dest_device_id}`;
+    if (outbound) return `s:${flowSiteKey(f, "source")}:${f.source_device_name || "source"}`;
+    return `t:${flowSiteKey(f, "dest")}:${f.dest_device_name || f.dest_label || f.dest_display || "dest"}`;
   }
 
-  function cityDeviceCountOnTrunk(flows, cityKey) {
+  function cityDeviceCountOnTrunk(flows, perspective, pairMode) {
     const keys = new Set();
     flows.forEach((f) => {
-      if (f.source_city_key === cityKey || f.dest_city_key === cityKey) {
-        keys.add(trunkDeviceKey(f, cityKey));
+      if (flowIsOutbound(f, perspective, pairMode) || flowIsInbound(f, perspective, pairMode)) {
+        keys.add(trunkDeviceKey(f, perspective, pairMode));
       }
     });
     return keys.size;
   }
 
   function defaultHopPerspective(hop, flows) {
-    const cities = hopEndCities(hop);
-    let best = cities[0] ? cities[0].id : null;
+    const ends = hopPerspectives(hop);
+    const pairMode = isSitePairHop(hop);
+    let best = ends[0] ? ends[0].id : null;
     let bestCount = -1;
-    cities.forEach((c) => {
-      const n = cityDeviceCountOnTrunk(flows, c.id);
+    ends.forEach((end) => {
+      const n = cityDeviceCountOnTrunk(flows, end.id, pairMode);
       if (n > bestCount) {
-        best = c.id;
+        best = end.id;
         bestCount = n;
       }
     });
@@ -820,24 +855,25 @@
 
   function renderHopTrunkPanel(panel, hop) {
     const scroll = panel.scrollTop;
-    const cities = hopEndCities(hop);
+    const pairMode = isSitePairHop(hop);
+    const ends = hopPerspectives(hop);
     const flows = trunkFlows(hop);
-    const valid = new Set(cities.map((c) => c.id));
+    const valid = new Set(ends.map((c) => c.id));
     let perspective = hopPerspectiveById[hop.id];
-    if (!perspective || !valid.has(perspective)) {
+    if (!perspective || !valid.has(String(perspective))) {
       perspective = defaultHopPerspective(hop, flows);
       hopPerspectiveById[hop.id] = perspective;
     }
-    const perspectiveCity = cities.find((c) => c.id === perspective) || cities[0];
+    const perspectiveEnd = ends.find((c) => c.id === String(perspective)) || ends[0];
 
     const sites = new Map();
     flows.forEach((f) => {
-      const outbound = f.source_city_key === perspective;
-      const inbound = f.dest_city_key === perspective;
+      const outbound = flowIsOutbound(f, perspective, pairMode);
+      const inbound = flowIsInbound(f, perspective, pairMode);
       if (!outbound && !inbound) return;
-      const siteId = outbound ? (f.source_site_id || `src:${f.source_device_id}`) : (f.dest_site_id || `dst:${f.dest_device_id || f.dest_label || "x"}`);
+      const siteId = outbound ? flowSiteKey(f, "source") : flowSiteKey(f, "dest");
       const siteName = outbound ? (f.source_site_name || "Unknown site") : (f.dest_site_name || f.dest_display || "Unknown site");
-      const deviceKey = trunkDeviceKey(f, perspective);
+      const deviceKey = trunkDeviceKey(f, perspective, pairMode);
       const deviceId = outbound ? f.source_device_id : f.dest_device_id;
       const listed = deviceId ? (state.devices || []).find((d) => d.id === deviceId) : null;
       const deviceName = outbound
@@ -880,11 +916,11 @@
       });
     });
 
-    const picker = cities.length
-      ? `<div class="hop-perspective" role="tablist" aria-label="Trunk city perspective">
+    const picker = ends.length
+      ? `<div class="hop-perspective" role="tablist" aria-label="${pairMode ? "Trunk site perspective" : "Trunk city perspective"}">
           <span class="muted">From</span>
-          ${cities.map((c) =>
-            `<button type="button" role="tab" class="hop-perspective-btn${c.id === perspective ? " active" : ""}" data-perspective="${escapeAttr(c.id)}" aria-selected="${c.id === perspective ? "true" : "false"}">${escapeHtml(c.name)}</button>`
+          ${ends.map((c) =>
+            `<button type="button" role="tab" class="hop-perspective-btn${c.id === String(perspective) ? " active" : ""}" data-perspective="${escapeAttr(c.id)}" aria-selected="${c.id === String(perspective) ? "true" : "false"}">${escapeHtml(c.name)}</button>`
           ).join("")}
         </div>`
       : "";
@@ -912,7 +948,7 @@
     const scope = isSitePairHop(hop) ? "between these sites" : "on this trunk";
     panel.innerHTML = `
       <h2>${escapeHtml(title)}</h2>
-      <p class="muted">${flows.length} path${flows.length === 1 ? "" : "s"} ${scope}${perspectiveCity ? ` · ${escapeHtml(perspectiveCity.name)} devices` : ""}</p>
+      <p class="muted">${flows.length} path${flows.length === 1 ? "" : "s"} ${scope}${perspectiveEnd ? ` · ${escapeHtml(perspectiveEnd.name)} devices` : ""}</p>
       <p>${badge(hop.status)}</p>
       ${picker}
       ${body}
