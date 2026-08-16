@@ -2,7 +2,8 @@
 
 Stdlib only. Results are stored on the city/site row so air-gapped
 production does not need Nominatim at runtime — only when an operator
-creates or edits a location. Manual lat/lng always wins once set.
+creates or edits a location. Changing a site address re-looks up the
+pin unless the operator also typed new lat/lng in the same save.
 """
 from __future__ import annotations
 

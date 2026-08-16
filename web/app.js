@@ -1896,9 +1896,9 @@
       ? escapeHtml(s.name)
       : (city ? `New site in ${escapeHtml(city.name)}` : "New site");
     const geoNote = s?.geo_source === "manual"
-      ? "Coordinates were set by hand; bootstrap will not overwrite them."
+      ? "Coordinates were set by hand. Changing the address looks up a new pin."
       : s?.geo_source === "geocode"
-        ? "Coordinates came from the address lookup. Adjust if the pin is off."
+        ? "Coordinates came from the address lookup. Changing the address updates them."
         : "Enter a street address (or lat/lng). Address is geocoded when you leave the field.";
     return `
       <form class="form">
@@ -2328,10 +2328,12 @@
     });
   }
 
-  async function lookupGeo(query, kind, latEl, lngEl, sourceEl, msg) {
+  async function lookupGeo(query, kind, latEl, lngEl, sourceEl, msg, force) {
     if (!query) return;
-    if (sourceEl && sourceEl.value === "manual") return;
-    if (latEl && latEl.value && lngEl && lngEl.value) return;
+    if (!force) {
+      if (sourceEl && sourceEl.value === "manual") return;
+      if (latEl && latEl.value && lngEl && lngEl.value) return;
+    }
     try {
       const data = await apiSend("POST", "/api/geocode", { query, kind });
       if (!data.hit) {
@@ -2378,7 +2380,13 @@
     if (kind === "sites") {
       const address = form.querySelector('[name="address"]');
       if (address) {
-        address.addEventListener("blur", () => lookupGeo(address.value, "address", lat, lng, source, msg));
+        let lastQuery = (address.value || "").trim();
+        address.addEventListener("blur", () => {
+          const query = (address.value || "").trim();
+          if (query === lastQuery) return;
+          lastQuery = query;
+          lookupGeo(query, "address", lat, lng, source, msg, true);
+        });
       }
       const picker = form.querySelector("[data-pin-picker]");
       const iconInput = form.querySelector('[name="pin_icon"]');

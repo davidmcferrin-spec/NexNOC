@@ -97,6 +97,24 @@ def _fill_geo(query: str, kind: str, lat, lng, geo_source: str) -> tuple:
     return hit["lat"], hit["lng"], "geocode"
 
 
+def _same_coord(left, right) -> bool:
+    if left is None or right is None:
+        return left is None and right is None
+    return abs(float(left) - float(right)) < 1e-6
+
+
+def _operator_moved_pin(body: dict, existing) -> bool:
+    """True when the PATCH includes lat/lng that differ from the stored pin."""
+    if "lat" not in body and "lng" not in body:
+        return False
+    new_lat = _opt_float(body["lat"]) if "lat" in body else existing["lat"]
+    new_lng = _opt_float(body["lng"]) if "lng" in body else existing["lng"]
+    return not (
+        _same_coord(new_lat, existing["lat"])
+        and _same_coord(new_lng, existing["lng"])
+    )
+
+
 def stamp_device_connectors(db: Database, device) -> int:
     """Create BNC/SDI rows from the resolved driver when the device has none."""
     from drivers.base import DriverResolutionError, kind_for_connector, resolve_driver
@@ -312,14 +330,15 @@ def _handle_sites(db: Database, method: str, item_id: Optional[int], body: dict)
             fields["lat"] = _opt_float(body["lat"])
         if "lng" in body:
             fields["lng"] = _opt_float(body["lng"])
-        if "address" in body and "lat" not in body and "lng" not in body:
-            # Manual pins stay put; typo fixes must not replace operator coords.
-            if (existing["geo_source"] or "") != "manual":
-                hit = geocode_or_none(body["address"], kind="address")
-                if hit:
-                    fields["lat"] = hit["lat"]
-                    fields["lng"] = hit["lng"]
-                    fields["geo_source"] = "geocode"
+        new_address = (body["address"] if "address" in body else existing["address"]) or ""
+        address_changed = "address" in body and new_address.strip() != (existing["address"] or "").strip()
+        # A new address relocates the pin unless the operator also typed lat/lng.
+        if address_changed and new_address.strip() and not _operator_moved_pin(body, existing):
+            hit = geocode_or_none(new_address, kind="address")
+            if hit:
+                fields["lat"] = hit["lat"]
+                fields["lng"] = hit["lng"]
+                fields["geo_source"] = "geocode"
         fields.update(_pin_fields(body))
         db.update_site(item_id, **fields)
         return 200, {"site": _site_payload(db.get_site(item_id))}

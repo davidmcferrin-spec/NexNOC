@@ -701,7 +701,7 @@ class TestHttpServer(unittest.TestCase):
         self.assertEqual(row["direction"], "input")
         self.assertEqual(row["kind"], "sdi_in")
 
-    def test_site_address_patch_preserves_manual_coords(self):
+    def test_site_address_patch_geocodes_even_if_manual(self):
         status, site = self._send("POST", "/api/sites", {
             "name": "400 N Capitol", "lat": 38.89, "lng": -77.01,
         })
@@ -715,10 +715,66 @@ class TestHttpServer(unittest.TestCase):
                 "address": "401 N Capitol St NE",
             })
         self.assertEqual(status, 200)
-        self.assertAlmostEqual(updated["site"]["lat"], 38.89)
-        self.assertAlmostEqual(updated["site"]["lng"], -77.01)
-        self.assertEqual(updated["site"]["geo_source"], "manual")
+        self.assertAlmostEqual(updated["site"]["lat"], 1.0)
+        self.assertAlmostEqual(updated["site"]["lng"], 2.0)
+        self.assertEqual(updated["site"]["geo_source"], "geocode")
         self.assertEqual(updated["site"]["address"], "401 N Capitol St NE")
+
+    def test_site_address_patch_geocodes_stale_form_coords(self):
+        status, site = self._send("POST", "/api/sites", {
+            "name": "Unplaced", "lat": 38.89, "lng": -77.01,
+        })
+        self.assertEqual(status, 201)
+        site_id = site["site"]["id"]
+        with patch("inventory_api.geocode_or_none", return_value={
+            "lat": 41.8, "lng": -87.6, "display_name": "Chicago", "source": "geocode",
+        }) as lookup:
+            status, updated = self._send("PATCH", f"/api/sites/{site_id}", {
+                "address": "233 S Wacker",
+                "lat": 38.89,
+                "lng": -77.01,
+            })
+        self.assertEqual(status, 200)
+        lookup.assert_called_once()
+        self.assertAlmostEqual(updated["site"]["lat"], 41.8)
+        self.assertAlmostEqual(updated["site"]["lng"], -87.6)
+        self.assertEqual(updated["site"]["geo_source"], "geocode")
+
+    def test_site_address_patch_keeps_operator_coords(self):
+        status, site = self._send("POST", "/api/sites", {
+            "name": "400 N Capitol", "lat": 38.89, "lng": -77.01,
+        })
+        site_id = site["site"]["id"]
+        with patch("inventory_api.geocode_or_none") as lookup:
+            status, updated = self._send("PATCH", f"/api/sites/{site_id}", {
+                "address": "401 N Capitol St NE",
+                "lat": 38.895,
+                "lng": -77.009,
+                "geo_source": "manual",
+            })
+        self.assertEqual(status, 200)
+        lookup.assert_not_called()
+        self.assertAlmostEqual(updated["site"]["lat"], 38.895)
+        self.assertAlmostEqual(updated["site"]["lng"], -77.009)
+        self.assertEqual(updated["site"]["geo_source"], "manual")
+
+    def test_site_address_unchanged_does_not_geocode(self):
+        status, site = self._send("POST", "/api/sites", {
+            "name": "400 N Capitol", "address": "401 N Capitol St NE",
+            "lat": 38.89, "lng": -77.01,
+        })
+        site_id = site["site"]["id"]
+        with patch("inventory_api.geocode_or_none") as lookup:
+            status, updated = self._send("PATCH", f"/api/sites/{site_id}", {
+                "address": "401 N Capitol St NE",
+                "lat": 38.89,
+                "lng": -77.01,
+                "notes": "typo only",
+            })
+        self.assertEqual(status, 200)
+        lookup.assert_not_called()
+        self.assertAlmostEqual(updated["site"]["lat"], 38.89)
+        self.assertEqual(updated["site"]["notes"], "typo only")
 
     def test_site_address_patch_geocodes_when_not_manual(self):
         status, site = self._send("POST", "/api/sites", {"name": "Unplaced"})
