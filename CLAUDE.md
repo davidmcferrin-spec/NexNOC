@@ -84,7 +84,9 @@ were pulled off the active roadmap — see "Future ideas" below.
   `/prometheus/ipgateway/metrics`, `/prometheus/alarms/metrics`. Metric
   names (`total_alarms`, `apr_x_sdi_lock_status`, slot gauges, port
   rates) come from those scrapes. Do not invent JSON sub-API paths
-  (MMI/IpGateway REST).
+  (MMI/IpGateway REST). `collect()` upserts SDI/net ports and dest_label-only
+  draft flows from those samples — never invent dest city/site/device from
+  a label, and later polls update status only.
 - **Haivision**: Confirmed from Makito X4 Encoder 1.8.0 `/apidoc` (saved
   from 10.207.9.245). Session login `POST /apis/authentication`
   `{username,password}` over HTTPS; inventory via `GET /apis/status`,
@@ -208,6 +210,11 @@ Sub-10s breaks stay on traps (`nexnoc-trapd`). Board `/api/state` every
 - Device status transitions require `CONSECUTIVE_FAILURES_THRESHOLD` (3)
   misses before flipping to `unreachable`, to avoid flapping. In-memory
   failure counter resets on poller restart (acceptable).
+- `collect()` may return `DiscoveredPort` / `DiscoveredFlow` on
+  `CollectResult`. The poller upserts ports (match name or `slot`; never
+  delete or rename) and creates dest_label-only draft flows if none exist
+  for that source+label. Later polls update flow/port **status** only —
+  do not invent or change destinations.
 - **Adding a driver**: implement `Driver` in `drivers/<vendor>.py` (new
   file for a new vendor; new class in the existing file, or a new file, for
   a new model/firmware range within an existing vendor). Register in

@@ -58,14 +58,41 @@ class InventoryItem:
 
 
 @dataclass
+class DiscoveredPort:
+    """Port seen during collect(). Poller upserts by name or slot; never deletes."""
+    name: str
+    kind: str = "other"
+    slot: str = ""          # stable rematch key (Appear config_id, or net:slot:connector)
+    capability: str = ""
+    direction: str = ""
+    status: str = "unknown"  # unknown | up | degraded | down
+
+
+@dataclass
+class DiscoveredFlow:
+    """Draft source-side flow. Poller creates if missing; later polls update status only."""
+    label: str
+    dest_label: str
+    port_slot: str = ""
+    port_name: str = ""
+    signal_label: str = ""
+    status: str = "unknown"
+    direction: str = ""
+
+
+@dataclass
 class CollectResult:
     """Optional richer poll result. ping() stays the cheap reachability check;
     collect() fills modules / derived device_status when a driver has confirmed
-    endpoints (Haivision /apis/*, Appear Prometheus)."""
+    endpoints (Haivision /apis/*, Appear Prometheus). ports/flows are optional
+    upserts — dest city/site/device stay empty until an operator places them."""
     device_status: str = "healthy"   # healthy | degraded
     firmware_version: Optional[str] = None
     error: Optional[str] = None
+    detail: Optional[str] = None     # extra poll_log lines (Appear Prometheus summary)
     modules: list[InventoryItem] = field(default_factory=list)
+    ports: list[DiscoveredPort] = field(default_factory=list)
+    flows: list[DiscoveredFlow] = field(default_factory=list)
 
 
 # SNMPv2-Trap generic OIDs (snmpTraps). Shared by trapd + Driver.interpret_trap.

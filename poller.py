@@ -928,6 +928,8 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
                         snapshot = await loop.run_in_executor(_poll_executor, driver.collect)
                         collect_flag = "ok" if snapshot is not None else "empty"
                         step(f"API collect {collect_flag}")
+                        if snapshot is not None and snapshot.detail:
+                            step(snapshot.detail)
                     except Exception as exc:  # noqa: BLE001
                         logger.exception("collect() failed for device %r after successful ping", device.name)
                         collect_flag = "fail"
@@ -1047,6 +1049,52 @@ async def poll_device(db: Database, device: Device) -> PollOutcome:
     return _finish_poll(db, device, outcome)
 
 
+def _apply_discovered_ports(db: Database, device: Device, ports) -> None:
+    """Upsert ports from collect(). Never delete; do not rename existing rows."""
+    for spec in ports:
+        row = db.find_port(device.id, spec.name)
+        if row is None and spec.slot:
+            row = db.find_port_by_slot(device.id, spec.slot)
+        if row is None:
+            db.add_port(
+                device.id, spec.name, kind=spec.kind, slot=spec.slot,
+                status=spec.status, capability=spec.capability,
+                direction=spec.direction,
+            )
+            continue
+        updates = {"status": spec.status}
+        if spec.slot and not (row["slot"] or "").strip():
+            updates["slot"] = spec.slot
+        db.update_port(row["id"], **updates)
+
+
+def _apply_discovered_flows(db: Database, device: Device, flows) -> None:
+    """Create dest_label-only drafts once; later polls update status only."""
+    for spec in flows:
+        port = None
+        if spec.port_slot:
+            port = db.find_port_by_slot(device.id, spec.port_slot)
+        if port is None and spec.port_name:
+            port = db.find_port(device.id, spec.port_name)
+        existing = db.list_flows_for_source_label(device.id, spec.label)
+        if not existing:
+            dest = spec.dest_label or spec.label
+            db.add_flow(
+                label=spec.label,
+                source_device_id=device.id,
+                source_port_id=port["id"] if port else None,
+                dest_label=dest,
+                signal_label=spec.signal_label or dest,
+                direction=spec.direction,
+                status=spec.status,
+            )
+            continue
+        for row in existing:
+            db.set_flow_status(row["id"], spec.status)
+            if not row["source_port_id"] and port is not None:
+                db.update_flow(row["id"], source_port_id=port["id"])
+
+
 def _apply_snapshot(db: Database, device: Device, snapshot: CollectResult) -> None:
     if snapshot.firmware_version and snapshot.firmware_version != device.firmware_version:
         db.set_device_firmware(device.id, snapshot.firmware_version)
@@ -1059,6 +1107,10 @@ def _apply_snapshot(db: Database, device: Device, snapshot: CollectResult) -> No
             serial=item.serial,
             status=item.status,
         )
+    if snapshot.ports:
+        _apply_discovered_ports(db, device, snapshot.ports)
+    if snapshot.flows:
+        _apply_discovered_flows(db, device, snapshot.flows)
 
 
 def _handle_poll_result(db: Database, device: Device, success: bool,

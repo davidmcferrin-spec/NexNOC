@@ -216,6 +216,10 @@ class TestAppearDriver(unittest.TestCase):
         slots = {m.slot: m for m in snap.modules}
         self.assertEqual(slots["5"].status, "down")
         self.assertEqual(slots["3"].status, "healthy")
+        self.assertIn("critical", snap.error or "")
+        self.assertTrue(any(m.slot.startswith("5/") for m in snap.modules))
+        self.assertTrue(any(p.name == "SpyCam" and p.status == "down" for p in snap.ports))
+        self.assertTrue(any(f.label == "SpyCam" and f.dest_label == "SpyCam" for f in snap.flows))
 
 
 class TestHaivisionDriver(unittest.TestCase):

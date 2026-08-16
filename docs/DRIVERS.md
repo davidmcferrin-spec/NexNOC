@@ -120,7 +120,7 @@ Minimum: `ping()`. Everything else is optional.
 | Method | Required | Rules |
 |---|---|---|
 | `ping()` | yes | Cheapest reachability. **Must not raise** — catch transport errors, return `False`. |
-| `collect()` | no | Richer health/inventory. Return `CollectResult` or `None`. Not required for ping. |
+| `collect()` | no | Richer health/inventory. Return `CollectResult` or `None`. Optional `ports` / `flows` are upserted by the poller (never deleted). Draft flows may set `dest_label` only — do not invent dest city/site. Later polls update status only. |
 | `discover()` | no | Probe candidate HTTP paths. Default raises. |
 | `snmp_ping()` / `snmp_collect()` | no | Default is MIB-2 `sysDescr`. Override only after confirmed vendor OIDs. |
 | `interpret_trap()` | no | Default handles generic MIB-2 traps. Override only for confirmed enterprise OIDs. |

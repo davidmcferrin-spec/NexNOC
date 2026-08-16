@@ -1141,6 +1141,15 @@ class Database:
                 (device_id, name),
             ).fetchone()
 
+    def find_port_by_slot(self, device_id: int, slot: str) -> Optional[sqlite3.Row]:
+        if not (slot or "").strip():
+            return None
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM ports WHERE device_id = ? AND slot = ?",
+                (device_id, slot),
+            ).fetchone()
+
     def get_port(self, port_id: int) -> Optional[sqlite3.Row]:
         with self.connect() as conn:
             return conn.execute("SELECT * FROM ports WHERE id = ?", (port_id,)).fetchone()
@@ -1265,6 +1274,20 @@ class Database:
                 LEFT JOIN ports dp ON dp.id = f.dest_port_id
                 ORDER BY COALESCE(f.signal_label, f.label), src.name, f.id
                 """
+            ).fetchall()
+
+    def list_flows_for_source_label(
+        self, source_device_id: int, label: str,
+    ) -> list[sqlite3.Row]:
+        """Match draft or placed flows by source + label (or signal_label)."""
+        with self.connect() as conn:
+            return conn.execute(
+                """
+                SELECT * FROM flows
+                WHERE source_device_id = ?
+                  AND (label = ? OR IFNULL(signal_label, '') = ?)
+                """,
+                (source_device_id, label, label),
             ).fetchall()
 
     def find_flow(

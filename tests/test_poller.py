@@ -11,9 +11,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import poller as poller_mod  # noqa: E402
 from db import Database  # noqa: E402
+from drivers.appear import interpret_appear_metrics  # noqa: E402
+from drivers.base import CollectResult, DiscoveredFlow, DiscoveredPort  # noqa: E402
+from drivers.prometheus_util import parse_prometheus  # noqa: E402
 from poller import (  # noqa: E402
     HTTP_TIMEOUT_SECONDS,
     PollOutcome,
+    _apply_snapshot,
     _summarize_cycle,
     build_driver,
     cached_driver,
@@ -257,6 +261,117 @@ class TestPollScheduler(unittest.IsolatedAsyncioTestCase):
             await self._run_loop(interval=1.0, max_in_flight=2, tick=0.02, seconds=0.12)
 
         self.assertEqual(peak, 2)
+
+
+class TestApplySnapshotDiscovery(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.db = Database(os.path.join(self.tmpdir.name, "t.db"))
+        self.db.initialize()
+        self.site = self.db.add_site("Washington")
+        self.device_id = self.db.add_device(
+            site_id=self.site, name="DC-X20-1", vendor="appear",
+            mgmt_host="10.0.1.10",
+        )
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def _device(self):
+        return self.db.get_device(self.device_id)
+
+    def test_creates_ports_and_draft_flows_once(self):
+        snap = CollectResult(
+            ports=[
+                DiscoveredPort(
+                    name="Slot 5-Enc.6 (DC to CHI SpyCam)", kind="sdi_in",
+                    slot="cfg-spy", capability="input", direction="input",
+                    status="down",
+                ),
+                DiscoveredPort(name="1/D1", kind="net", slot="net:1:D1", status="up"),
+            ],
+            flows=[
+                DiscoveredFlow(
+                    label="Slot 5-Enc.6 (DC to CHI SpyCam)",
+                    dest_label="DC to CHI SpyCam",
+                    port_slot="cfg-spy",
+                    port_name="Slot 5-Enc.6 (DC to CHI SpyCam)",
+                    signal_label="DC to CHI SpyCam",
+                    status="down",
+                ),
+            ],
+        )
+        _apply_snapshot(self.db, self._device(), snap)
+        _apply_snapshot(self.db, self._device(), snap)
+        ports = self.db.list_ports(self.device_id)
+        flows = [f for f in self.db.list_flows() if f["source_device_id"] == self.device_id]
+        self.assertEqual(len(ports), 2)
+        self.assertEqual(len(flows), 1)
+        flow = flows[0]
+        self.assertEqual(flow["dest_label"], "DC to CHI SpyCam")
+        self.assertIsNone(flow["dest_site_id"])
+        self.assertIsNone(flow["dest_device_id"])
+        self.assertIsNone(flow["dest_city_id"])
+        self.assertEqual(flow["status"], "down")
+        self.assertEqual(self.db.find_port(self.device_id, "1/D1")["status"], "up")
+
+    def test_later_poll_updates_status_not_destination(self):
+        chi = self.db.add_site("Chicago")
+        self.db.add_port(
+            self.device_id, "Slot 5-Enc.6 (DC to CHI SpyCam)",
+            kind="sdi_in", slot="cfg-spy",
+        )
+        self.db.add_flow(
+            label="Slot 5-Enc.6 (DC to CHI SpyCam)",
+            source_device_id=self.device_id,
+            dest_site_id=chi,
+            dest_label="placed",
+            status="unknown",
+        )
+        snap = CollectResult(
+            ports=[
+                DiscoveredPort(
+                    name="Slot 5-Enc.6 (DC to CHI SpyCam)", kind="sdi_in",
+                    slot="cfg-spy", status="up",
+                ),
+            ],
+            flows=[
+                DiscoveredFlow(
+                    label="Slot 5-Enc.6 (DC to CHI SpyCam)",
+                    dest_label="DC to CHI SpyCam",
+                    port_slot="cfg-spy",
+                    status="up",
+                ),
+            ],
+        )
+        _apply_snapshot(self.db, self._device(), snap)
+        flows = [f for f in self.db.list_flows() if f["source_device_id"] == self.device_id]
+        self.assertEqual(len(flows), 1)
+        self.assertEqual(flows[0]["status"], "up")
+        self.assertEqual(flows[0]["dest_site_id"], chi)
+        self.assertEqual(flows[0]["dest_label"], "placed")
+        self.assertEqual(self.db.find_port_by_slot(self.device_id, "cfg-spy")["status"], "up")
+
+    def test_live_appear_fixtures_apply(self):
+        fixture = Path(__file__).resolve().parent.parent / "API-Mibs" / "DC appear x20"
+        if not (fixture / "product-metrics.txt").is_file():
+            self.skipTest("Appear X20 scrape fixtures missing")
+        body = "\n".join(
+            (fixture / name).read_text(encoding="utf-8")
+            for name in (
+                "system-metrics.txt", "product-metrics.txt",
+                "ipgateway-metrics.txt", "alarms-metrics.txt",
+            )
+        )
+        snap = interpret_appear_metrics(parse_prometheus(body))
+        _apply_snapshot(self.db, self._device(), snap)
+        _apply_snapshot(self.db, self._device(), snap)
+        ports = self.db.list_ports(self.device_id)
+        flows = [f for f in self.db.list_flows() if f["source_device_id"] == self.device_id]
+        self.assertEqual(len([p for p in ports if p["kind"].startswith("sdi")]), 12)
+        self.assertEqual(len(flows), 12)
+        self.assertTrue(all(f["dest_site_id"] is None for f in flows))
+        self.assertTrue(any(f["dest_label"] == "DC to CHI SpyCam" for f in flows))
 
 
 if __name__ == "__main__":
